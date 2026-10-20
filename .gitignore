@@ -1,0 +1,39 @@
+# Python environments and caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv*/
+venv/
+
+# Local settings and credentials
+.env
+.env.*
+proxy-config*.json
+.runtime/
+.mitmproxy/
+certs/
+*.pem
+*.key
+*.p12
+*.pfx
+mitmproxy-ca*
+*.log
+
+# Generated packages and build output
+.build/
+build/
+dist/
+outputs/
+*.app/
+*.dmg
+*.exe
+*.zip
+*.whl
+*.jar
+*.class
+
+# Local editor and OS files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

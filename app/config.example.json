@@ -1,0 +1,14 @@
+{
+  "base_url": "http://127.0.0.1:3000/v1",
+  "listen_port": 8899,
+  "no_auth": false,
+  "qoder_enabled": true,
+  "manage_qoder_proxy": true,
+  "integration_mode": "manual",
+  "client_type": "idea",
+  "client_edition": "global",
+  "client_path": "",
+  "model_map": {
+    "glm-5.3-flash": "qd/gfmodel"
+  }
+}

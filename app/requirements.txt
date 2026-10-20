@@ -1,0 +1,2 @@
+# Proxy runtime: standard 64-bit CPython 3.12-3.14. Entrypoints provision 3.13.16 when needed.
+mitmproxy==12.2.3

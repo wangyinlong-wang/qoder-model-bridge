@@ -1,0 +1,19 @@
+<idea-plugin>
+  <id>local.qoder.internal.bridge</id>
+  <name>Qoder Internal Model Bridge</name>
+  <version>0.1.2</version>
+  <vendor>Local tools</vendor>
+  <description><![CDATA[将本机脚本选中的模型交给 Qoder 原生添加和凭据保存流程。仅监听带会话认证的回环接口，不接收内网 API Key。适配 Qoder 2026.924.75731882 和 2026.1014.79712739。]]></description>
+  <idea-version since-build="261" until-build="261.*"/>
+  <depends>com.intellij.modules.platform</depends>
+  <depends>com.qoder</depends>
+  <extensions defaultExtensionNs="com.intellij">
+    <postStartupActivity implementation="local.qoder.bridge.BridgeService$Startup"/>
+  </extensions>
+  <actions>
+    <action id="QoderInternalBridge.Enable" class="local.qoder.bridge.BridgeService$EnableAction"
+            text="Qoder Internal Bridge: Enable" description="启用本机 Qoder 内网模型导入桥接">
+      <add-to-group group-id="ToolsMenu"/>
+    </action>
+  </actions>
+</idea-plugin>
