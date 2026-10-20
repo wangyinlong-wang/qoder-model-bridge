@@ -48,37 +48,48 @@ python3 app/idea-bridge/build.py --ide-home "<IDE installation/Contents on macOS
 
 The script uses `jbr/bin/javac` and `jbr/bin/java` from the supplied IDE, searches its libraries and the supplied Qoder plugin's `lib/`, and compiles with `--release 21`. A compatible compiler supporting Java 21 is required. The resulting archive is `app/idea-bridge/.build/qoder-internal-bridge-0.1.2.zip`; install that locally built archive through the IDE's plugin installation UI. Building is not evidence that every IDE/plugin version is compatible.
 
-## Desktop package materials
+## Desktop packages
 
-Fresh-clone source execution and self-contained desktop packaging are separate workflows. The files below are packaging materials, not a complete one-command release pipeline. No installers are produced by cloning this repository.
+The public prerelease is `v1.1.4-beta.1`; numeric bundle/installer metadata is `1.1.4`. Runtime inputs are intentionally external to Git. The build scripts do not download or install them, and a fresh clone alone cannot produce a complete DMG/EXE.
+
+### Shared optional bridge and licenses
+
+The bridge build above accepts `--build-dir <new isolated directory>`. It packages the project's MIT text and NOTICE with its own classes/metadata and never bundles vendor JARs. The public asset is named `qoder-local-model-bridge-0.1.2.zip`; it is also copied into both desktop packages.
+
+`packaging/collect_licenses.py` reads exact local wheel/runtime inputs without installing them. Supply `--platform macos|windows`, one or more `--wheels` directories, original runtime notice paths, `--supplements` containing any verified upstream notices absent from wheels, `--sources` with the corresponding-source manifest, and a new `--output` directory. Use `--help` for these file arguments. Its output preserves original notice bytes and records package versions/input hashes; it refuses an existing destination and fails if a wheel has no original or supplemented notice. Review its inventory and the actual runtime components separately; it is not a full native-license audit.
+
+The release also supplies `Qoder-Model-Bridge-1.1.4-beta.1-third-party-sources.zip`, with the exact source archives and hashes described in [third-party notices](THIRD_PARTY_NOTICES.md). Do not replace corresponding-source delivery with an unsupported promise to supply it later.
 
 ### macOS
 
-`packaging/macos/` retains the native Cocoa/Python launcher, bundle metadata, Python/Tcl/Tk relocation helper, native signing audit and wheel audit. The baseline targets macOS 12+, universal2 CPython 3.13.16, Tcl/Tk 8.6.18 and mitmproxy 12.2.3.
+The public bundle targets macOS12+, universal2 CPython3.13.16, Tcl/Tk8.6.18 and mitmproxy12.2.3. Preparing the runtime requires the official Python framework, Tcl/Tk frameworks and 42 dependency wheels per architecture. Keep the existing architecture-specific versions; do not silently resolve or upgrade them during packaging.
 
-Preparing a new bundle requires externally obtained runtimes and both architectures' dependency wheels. In particular:
+After independently preparing and auditing the runtime bundle, run from the repository root:
 
-- `prepare_framework.py` expects an extracted official Python framework payload under `packaging/macos/python-pkg/Python_Framework.pkg/Payload/Versions/3.13` and creates a new `Qoder 内网模型接入.app` beside the script. It refuses an existing destination.
-- `verify_dependencies.py` expects locally prepared `resolved-aarch64.txt`, `resolved-x86_64.txt`, `wheels-arm64/` and `wheels-x86_64/`. Historical resolver reports were deliberately excluded; they must be prepared for the new build.
-- The native launcher must be compiled with the appropriate Python framework headers/libraries, the selected application modules copied into `Contents/Resources/app`, and the architecture-specific dependencies staged under `Contents/Resources/dependencies/`.
-- `audit_and_sign.py` expects the prepared bundle beside the script. Review its signing actions before running it; build only in an isolated staging directory, never over an installed application.
+```sh
+python3 -B packaging/macos/build.py --runtime-app "<audited runtime .app>" --python-headers "<matching Python framework Headers>" --licenses "<collected macOS license directory>" --bridge "<frozen qoder-local-model-bridge-0.1.2.zip>" --build-dir "<new isolated build directory>" --release-version 1.1.4-beta.1
+```
 
-The repository does not supply the extracted framework, wheel archives, a complete runtime assembly orchestrator, a Developer ID identity, notarization credentials or public-release signing results. Ad-hoc signing and Rosetta checks are not notarization or physical Intel acceptance. Preserve the LC_CTYPE fallback in `app/app_entry.py`; it is needed when macOS launches the Chinese-named bundle without a character locale.
+The script reuses only runtime frameworks/Python/dependencies, copies current public application modules, compiles the native launcher, signs the bundle and creates the DMG. It does not copy an old application's configuration, code, CA, logs or runtime state. The [macOS source and helper scripts](https://github.com/wangyinlong-wang/qoder-model-bridge/tree/v1.1.4-beta.1/packaging/macos) also include relocation and native/dependency audits; they do not supply the missing runtime inputs.
+
+The DMG includes `Qoder Model Bridge.app`, an Applications link, `Documentation/` and `IDEA Bridge/`. The app carries its own project license, third-party notices and optional bridge. Signing is ad-hoc; no Developer ID identity or notarization is supplied. Rosetta checks on Apple hardware are not physical Intel acceptance. Preserve the LC_CTYPE fallback in `app/app_entry.py` for GUI startup without an external character locale.
 
 ### Windows
 
-`packaging/windows/` retains the NSIS installer template, its generated baseline file lists, offline bootstrap/start templates, dependency lock file and original NSIS license text. The offline baseline is Windows 10/11 x64, standard CPython 3.13.16 and NSIS 3.13.
+The installer targets Windows10/11 x64, standard CPython3.13.16 (its supplied Tcl/Tk is8.6.15), mitmproxy12.2.3 and NSIS3.13. Obtain the original Python ZIP and all 43 wheels matching `packaging/windows/requirements-windows-offline.txt`. The baseline Python input is the [official 3.13.16 x64 ZIP](https://www.python.org/ftp/python/3.13.16/python-3.13.16-amd64.zip), SHA256 `bbf675bb5e763c1efbb09a3a461b259d81598a63c30c4b0d7ea11b9f063df159`.
 
-A builder must assemble a new clean payload containing the public `app/` modules, required instruction/license files, `installers/python-3.13.16-amd64.zip`, the wheels matching `requirements-windows-offline.txt`, and all entries expected by `install-files.nsh`. The repository does not include that payload or its historical hash inventory. Synchronize/regenerate the install/uninstall file lists when changing the payload; do not build from an existing user installation.
-
-Only after the payload is prepared, invoke NSIS from `packaging/windows/`:
+Arrange a clean runtime-input directory containing only the required `installers/python-3.13.16-amd64.zip` and `wheels/*.whl` inputs. Do not build from a user's installed directory. From the repository root:
 
 ```sh
-makensis -NOCONFIG -WX -V3 -DPAYLOAD_DIR="<clean payload directory>" -DOUTPUT_FILE="<new installer path>" installer.nsi
+python3 -B packaging/windows/build.py --runtime-input "<verified runtime inputs>" --licenses "<collected Windows license directory>" --bridge "<frozen qoder-local-model-bridge-0.1.2.zip>" --build-dir "<new isolated Windows build directory>" --output "<new Qoder-Model-Bridge-1.1.4-beta.1-windows-x64-setup.exe>" --makensis "<makensis executable>" --nsisdir "<NSIS share/nsis directory>" --sevenzip "<7z or 7zz executable>"
 ```
 
-Supply `INSTALLER-README.txt` and the unmodified `NSIS-COPYING.txt` in that payload. The template keeps the established application identity and proxy-journal protections. Its version metadata is a compatibility baseline, not an announcement of an available GitHub release.
+This script copies an explicit application/document allowlist from the public checkout, verifies the official runtime and wheel hashes, adds the license directory/bridge, regenerates install/uninstall file lists in its build directory and runs NSIS with `-NOCONFIG -WX`. It then tests/extracts the EXE and compares every payload file by SHA256 and size. The generated file lists in the repository are a reviewed snapshot; the builder generates fresh lists for its own staged payload.
 
-## Public release boundary
+`bootstrap.py` and `start.cmd` retain the existing offline setup behavior. The installer keeps its established APP_ID, registry/data directories, all three proxy-record guards in both installation and uninstallation, and named-file/reparse-point safeguards. It recognizes both the old Chinese and new English GUI title and removes only known legacy shortcut names after successful setup. User `proxy-config.json` is not a payload or named deletion target; unknown files and preserved state are not recursively removed.
 
-Historical macOS 1.1.3 and Windows 1.1.2 installers are not included or offered as public downloads. They were built with private deployment defaults. A public binary needs a separate clean build from this public source, its exact dependency-license inventory, signing/installation checks and actual client acceptance. See [third-party notices](THIRD_PARTY_NOTICES.md) and [compatibility](docs/COMPATIBILITY.md).
+The EXE is not Authenticode-signed. NSIS compilation, archive tests, extraction/hash comparison and static protection review do not prove installation, GUI, upgrade/uninstall or native client behavior on Windows. No Windows-machine/VM acceptance is claimed for this prerelease.
+
+## Release checks and scope
+
+The release assets are the Mac DMG, Windows EXE, optional bridge ZIP, corresponding-source ZIP and `SHA256SUMS`. The sum file covers the four binary/ZIP assets. Verify the actual same-version build results and remaining limitations in the [release notes](https://github.com/wangyinlong-wang/qoder-model-bridge/releases/tag/v1.1.4-beta.1), and see [compatibility](docs/COMPATIBILITY.md). Packaging checks do not make every Qoder workflow or real model API accepted. Historical privately configured installers must not be uploaded as these assets.

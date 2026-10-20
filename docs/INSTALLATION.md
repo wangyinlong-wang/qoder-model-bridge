@@ -4,9 +4,9 @@
 
 ## 获取方式
 
-当前处于实验性/Beta源码阶段，尚未发布 GitHub Releases 安装包。历史 Mac 1.1.3 / Windows 1.1.2 只用于说明已完成的内部验证，不作为本仓库的公开下载物。先使用下面的源码安装方式；发行构建输入见 [BUILD.md](../BUILD.md)。
+公开测试版使用 **v1.1.4-beta.1**。在[版本发行页](https://github.com/wangyinlong-wang/qoder-model-bridge/releases/tag/v1.1.4-beta.1)获取Mac DMG、Windows x64 EXE、可选IDEA桥接、第三方对应源码和 `SHA256SUMS`，也可按本文源码方式运行。历史Mac1.1.3 / Windows1.1.2内部安装包不是公开下载物。发行构建输入见 [BUILD.md](../BUILD.md)。
 
-项目名是 Qoder Model Bridge，现有界面仍显示「Qoder 内网模型接入」。
+公开版本界面为 Qoder Model Bridge；旧内部版本仍显示「Qoder 内网模型接入」。
 
 它包含桌面助手、本机转发器与可选IDEA桥接插件，不能只靠插件市场中的一个安装动作完成接入。
 
@@ -63,7 +63,37 @@ py -3.13 -m venv .venv
 
 ## Mac / Windows 发行应用
 
-当前没有公开安装包。历史 Mac 应用采用自包含运行时，Windows采用当前用户目录离线安装；这些结果不能代替未来公开发行包的签名、安装与真实客户端验收。历史 Mac 为 ad-hoc 签名、未公证，Windows EXE 未做 Authenticode 签名。
+两平台包自带Python和转发依赖，安装时无需另装Python/JDK或联网下载依赖；使用模型仍需你自己的网关及所需Qoder服务。安装前从同一发行页下载 `SHA256SUMS`，核对对应文件的SHA256。例如：
+
+```sh
+shasum -a 256 Qoder-Model-Bridge-1.1.4-beta.1-macos-universal.dmg
+```
+
+Windows PowerShell：
+
+```powershell
+Get-FileHash .\Qoder-Model-Bridge-1.1.4-beta.1-windows-x64-setup.exe -Algorithm SHA256
+```
+
+将结果与 `SHA256SUMS` 中对应文件一行逐字比较。
+
+### macOS DMG
+
+1. 下载 `Qoder-Model-Bridge-1.1.4-beta.1-macos-universal.dmg`。目标macOS12+，同时包含arm64与x86_64；实际验收边界见[兼容表](COMPATIBILITY.md)。
+2. 升级前在旧工具保存非秘密配置，停止转发并正常退出。旧中文应用名与新英文应用名可能并存；保留必要备份后将旧应用移出正式安装位置，避免同时打开两份。
+3. 打开DMG，将 `Qoder Model Bridge.app` 拖入Applications。弹出DMG后，从应用程序目录打开新应用。
+4. 本版仅ad-hoc签名，**没有Developer ID签名或Apple公证**。若系统阻止首次打开，先确认来源和SHA256，再按[Apple官方说明](https://support.apple.com/102445)在「系统设置 → 隐私与安全性」为该应用选择「仍要打开」，并完成系统要求的确认；组织策略可能禁止放行。不要关闭全局Gatekeeper或清除全局隔离属性。
+
+DMG的 `Documentation/` 提供本文与说明，`IDEA Bridge/` 提供可选插件。应用内部 `Contents/Resources/ThirdPartyLicenses/` 保留第三方原文和清单。
+
+### Windows EXE
+
+1. 下载 `Qoder-Model-Bridge-1.1.4-beta.1-windows-x64-setup.exe`。本版面向Windows10/11 x64，不支持ARM64/32位；**没有Windows实机安装/GUI/升级/卸载验收**。
+2. 先保存非秘密配置，停止转发并正常退出旧中文或新英文窗口。安装器保留既有安装身份，遇到活动代理记录会停止安装，不要删除记录绕过保护。
+3. 双击EXE，在当前用户目录完成离线安装，使用 `Qoder Model Bridge` 桌面/开始菜单快捷方式打开。默认安装根为 `%LOCALAPPDATA%\Programs\QoderInternalProxy`，不是系统级安装。
+4. 本版**没有Authenticode签名**，Windows可能显示未知发布者/SmartScreen提示。先核对发行来源与SHA256；组织策略阻止时按其软件审批流程处理，不关闭系统保护。
+
+安装根包含 `INSTALLER-README.txt`、`docs/`、`ThirdPartyLicenses/` 和 `idea-bridge/qoder-local-model-bridge-0.1.2.zip`。卸载使用该工具自己的卸载入口；配置、证书和非安装包文件按原保护规则保留。
 
 以后更换已安装版本时，应先保存非秘密配置，停止转发并正常退出旧窗口，再安装或替换。新文件不会热更新已打开的旧窗口。不要通过关闭 Gatekeeper、全局清除隔离属性或关闭证书验证来替代安装排查。
 
@@ -99,7 +129,9 @@ py -3.13 -m venv .venv
 
 ## IDEA 桥接插件
 
-桥接模式必须使用[精确兼容版本](COMPATIBILITY.md)。仓库不附带预编译桥接 ZIP，也不分发 IDEA / 官方 Qoder 插件的 JAR。先安装所需客户端和官方插件，再构建本项目桥接。
+桥接模式必须使用[精确兼容版本](COMPATIBILITY.md)。先自行安装IDEA及官方Qoder插件，再取本项目桥接ZIP：Mac DMG的 `IDEA Bridge/`、Windows安装目录的 `idea-bridge/`，或发行页单独的 `qoder-local-model-bridge-0.1.2.zip`。普通安装包用户不需要JDK来构建它；该ZIP只包含本项目的类与元数据、MIT/NOTICE，没有打入IDEA/Qoder官方JAR。
+
+源码用户如需自行构建，可使用以下命令。
 
 从项目根目录运行；用自己的安装位置替换尖括号占位值：
 
@@ -117,7 +149,7 @@ macOS 的 `IDEA_HOME` 指 IDEA 应用的 `Contents`；Windows 指其安装根目
 
 成功构建后得到 `app/idea-bridge/.build/qoder-internal-bridge-0.1.2.zip`：
 
-1. IDEA：Settings → Plugins → 齿轮 → Install Plugin from Disk，选择刚构建的 ZIP；如 IDE 提示重启，正常重启。
+1. IDEA：Settings → Plugins → 齿轮 → Install Plugin from Disk，选择随包或自行构建的ZIP；如IDE提示重启，正常重启。
 2. 在 Find Action 中执行 `Qoder Internal Bridge: Enable`。
 3. 工具选择「桥接导入」，拉取模型、加入映射并启动转发。
 4. 点击「刷新桥接」，选中目标 IDEA，再点击「一键添加到 IDEA / Qoder」。
@@ -142,8 +174,8 @@ macOS 的 `IDEA_HOME` 指 IDEA 应用的 `Contents`；Windows 指其安装根目
 | 启动方式 | 普通GUI的默认非秘密配置 |
 | --- | --- |
 | 源码运行 | `app/proxy-config.json` |
-| 历史Mac应用 | `~/Library/Application Support/QoderInternalProxy/proxy-config.json` |
-| 历史Windows安装包 | 实际安装目录中的 `proxy-config.json` |
+| macOS发行应用 | `~/Library/Application Support/QoderInternalProxy/proxy-config.json` |
+| Windows发行应用 | 实际安装目录中的 `proxy-config.json` |
 
 显式 `--config` 优先，并成为本次活动保存文件。在 `app/` 内运行的示例：
 
@@ -155,7 +187,7 @@ macOS 的 `IDEA_HOME` 指 IDEA 应用的 `Contents`；Windows 指其安装根目
 
 转发成功监听后会自动保存非秘密字段。目标文件含未知/敏感字段或非法内容时会拒绝覆盖，并明确提示本次配置未记住。Key不写入该文件，重新打开仍需输入；`--connect` 也不是免 Key 或免校验开关。
 
-旧窗口尚未保存的映射不会自动迁移。升级前使用「保存非秘密配置」，再按旧工具的停止规则正常退出。
+公开名称变化不迁移数据目录、schema或Key处理方式。旧窗口尚未保存的映射不会自动迁移；升级前使用「保存非秘密配置」，保存到准备继续使用的路径，再按旧工具的停止规则正常退出。Key重开仍需输入，新包不会热更新旧窗口。
 
 ## HTTPS 与本地 CA
 

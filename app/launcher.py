@@ -374,7 +374,7 @@ class App:
         self.auto_start = initial.get("_connect_on_start", False)
         self.auth_no_auth = False
         self.catalog = {}
-        root.title("Qoder 内网模型接入")
+        root.title("Qoder Model Bridge")
         root.geometry("1080x880")
         root.minsize(850, 760)
         frame = ttk.Frame(root, padding=16)

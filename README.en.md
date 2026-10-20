@@ -6,7 +6,7 @@ An unofficial bridge connecting Qoder IDE and its IntelliJ IDEA plugin to your o
 
 It consists of a **desktop helper, a local forwarder, and an optional IDEA bridge plugin**. Run the local forwarder while the client uses it, and add the IDEA bridge when needed.
 
-The direction is **your model gateway → Qoder clients**. Your gateway supplies the models and bills usage; Qoder account, provider availability and native validation requirements still apply, and the full Qoder workflow may require official online services. Its current GUI window is still named **Qoder 内网模型接入**.
+The direction is **your model gateway → Qoder clients**. Your gateway supplies the models and bills usage; Qoder account, provider availability and native validation requirements still apply, and the full Qoder workflow may require official online services. The public GUI is named **Qoder Model Bridge**; older internal builds used **Qoder 内网模型接入**.
 
 ## What it does
 
@@ -19,7 +19,17 @@ The independent **Qoder desktop Agent** and **Qoder IDE** are separate products.
 
 ## Distribution status
 
-The project is in the **experimental/Beta source stage. No GitHub Releases installers have been published.** Historical internal validation used Mac 1.1.3 and Windows 1.1.2; those packages are not public downloads for this repository. See [BUILD.md](BUILD.md) for packaging inputs and missing runtime assets.
+The first public version is the experimental **v1.1.4-beta.1** prerelease. Open its [GitHub release page](https://github.com/wangyinlong-wang/qoder-model-bridge/releases/tag/v1.1.4-beta.1) and select:
+
+- macOS universal: [Qoder-Model-Bridge-1.1.4-beta.1-macos-universal.dmg](https://github.com/wangyinlong-wang/qoder-model-bridge/releases/download/v1.1.4-beta.1/Qoder-Model-Bridge-1.1.4-beta.1-macos-universal.dmg)
+- Windows 10/11 x64: [Qoder-Model-Bridge-1.1.4-beta.1-windows-x64-setup.exe](https://github.com/wangyinlong-wang/qoder-model-bridge/releases/download/v1.1.4-beta.1/Qoder-Model-Bridge-1.1.4-beta.1-windows-x64-setup.exe)
+- Optional IDEA bridge, also included in both packages: [qoder-local-model-bridge-0.1.2.zip](https://github.com/wangyinlong-wang/qoder-model-bridge/releases/download/v1.1.4-beta.1/qoder-local-model-bridge-0.1.2.zip)
+- Third-party corresponding source: [Qoder-Model-Bridge-1.1.4-beta.1-third-party-sources.zip](https://github.com/wangyinlong-wang/qoder-model-bridge/releases/download/v1.1.4-beta.1/Qoder-Model-Bridge-1.1.4-beta.1-third-party-sources.zip)
+- Checksums: [SHA256SUMS](https://github.com/wangyinlong-wang/qoder-model-bridge/releases/download/v1.1.4-beta.1/SHA256SUMS)
+
+The Mac app is ad-hoc signed and **not notarized**. The Windows EXE has **no Authenticode signature**; its validation is limited to installer compilation, extraction and static checks, with no Windows-machine acceptance. See the [installation steps (中文)](docs/INSTALLATION.md#mac--windows-发行应用) for installation, checksums, upgrades and Apple's per-app approval flow. Source execution remains available below.
+
+Historical internal Mac 1.1.3 / Windows 1.1.2 installers are not public assets. See [BUILD.md](BUILD.md) for the external runtime inputs needed to build installers.
 
 ## Source quickstart
 
@@ -48,7 +58,7 @@ Keep the virtual environment at `app/.venv`: the launcher looks there for `mitmd
 ## Use it
 
 1. Prepare a reachable gateway and Key. It must implement `GET <Base URL>/models` with a nonempty `data` array of valid IDs and `POST <Base URL>/chat/completions`, including SSE for streaming requests. The sample `http://127.0.0.1:3000/v1` is a placeholder, not a model server supplied by this project.
-2. Select the client. For first-time Qoder IDE configuration, quit that IDE normally, then use **连接 / 启动 Qoder IDE** and sign in. For IDEA, use manual mode or build the optional bridge as described in the [Chinese installation guide](docs/INSTALLATION.md#idea-桥接插件).
+2. Select the client. For first-time Qoder IDE configuration, quit that IDE normally, then use **连接 / 启动 Qoder IDE** and sign in. For IDEA, use manual mode or install the bundled optional bridge as described in the [Chinese installation guide](docs/INSTALLATION.md#idea-桥接插件).
 3. Enter your Base URL and Key; use **1. 验证 Key 并拉取模型** to fetch the model list.
 4. Select models, use **一键加入映射**, and verify each client ID → upstream ID pair.
 5. Start forwarding with **2. 启动 Qoder 转发**, then use native import when needed. Keep forwarding running while the client uses the local proxy.

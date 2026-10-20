@@ -1,11 +1,18 @@
 """Check native dependencies, deployment targets and the final local app signature."""
+import argparse
 import json
 from pathlib import Path
 import re
 import subprocess
 
 BUILD = Path(__file__).resolve().parent
-APP = BUILD / "Qoder 内网模型接入.app"
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument("app", nargs="?", type=Path, default=BUILD / "Qoder Model Bridge.app")
+parser.add_argument("--report-dir", type=Path)
+args = parser.parse_args()
+APP = args.app.resolve()
+REPORT = args.report_dir.resolve() if args.report_dir else APP.parent
+REPORT.mkdir(parents=True, exist_ok=True)
 MAIN = APP / "Contents/MacOS/QoderInternalProxy"
 magic = {b"\xfe\xed\xfa\xce", b"\xce\xfa\xed\xfe", b"\xfe\xed\xfa\xcf", b"\xcf\xfa\xed\xfe",
          b"\xca\xfe\xba\xbe", b"\xbe\xba\xfe\xca", b"\xca\xfe\xba\xbf", b"\xbf\xba\xfe\xca"}
@@ -65,7 +72,7 @@ for path in APP.rglob("*"):
     records.append({"file": relative, "architectures": architectures, "minimum_os_versions": minimums})
 
 if problems:
-    (BUILD / "native-problems.json").write_text(json.dumps(problems, ensure_ascii=False, indent=2))
+    (REPORT / "native-problems.json").write_text(json.dumps(problems, ensure_ascii=False, indent=2))
     print(json.dumps({"problems": problems}, ensure_ascii=False))
     raise SystemExit(1)
 
@@ -88,5 +95,5 @@ assert result.returncode == 0, result.stderr
 report = {"mach_o_files": len(records), "native_objects": records, "locally_signed_leaf_files": signing,
           "signature": "ad-hoc; no Developer ID and no notarization", "signature_validation": result.stderr.strip(),
           "bundle_dependencies": "PASS", "minimum_os": "12.0", "external_symlinks": 0}
-(BUILD / "native-audit.json").write_text(json.dumps(report, ensure_ascii=False, indent=2))
+(REPORT / "native-audit.json").write_text(json.dumps(report, ensure_ascii=False, indent=2))
 print(json.dumps({key: value for key, value in report.items() if key not in {"native_objects", "locally_signed_leaf_files"}}, ensure_ascii=False))

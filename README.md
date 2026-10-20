@@ -8,7 +8,7 @@
 
 模型接入方向是：**自有网关的模型 → 本工具 → Qoder 客户端**。模型资源和计费来自你的网关；使用时仍需满足Qoder账号、供应商能力与原生校验，完整Qoder工作流仍可能依赖官方联网服务。
 
-项目名为 `qoder-model-bridge`，现有程序窗口名仍是「Qoder 内网模型接入」。
+项目名为 `qoder-model-bridge`，公开版本窗口名为 **Qoder Model Bridge**。旧内部版本窗口名是「Qoder 内网模型接入」。
 
 ## 当前提供什么
 
@@ -18,7 +18,20 @@
 - IDEA：保留手动添加模式；可选 Java 桥接插件将选中模型交给 Qoder 插件的原生添加、校验和保存流程。
 - 保存和下次加载非秘密配置；网关 Key 不写入该配置文件，重新打开工具后仍需输入。
 
-目前处于**实验性/Beta源码阶段，尚未发布 GitHub Releases 安装包**。历史验证使用过 Mac 1.1.3 和 Windows 1.1.2，但这些内部安装包不是本仓库的公开下载物。请按下方源码方式运行。发行构建资料与未随仓库提供的输入见 [BUILD.md](BUILD.md)；fresh clone不能直接产出完整DMG/EXE。
+## 下载安装包
+
+首个公开版本为实验性 **v1.1.4-beta.1**。在[该版本的 GitHub Releases 页面](https://github.com/wangyinlong-wang/qoder-model-bridge/releases/tag/v1.1.4-beta.1)选择：
+
+| 平台 | 文件 |
+| --- | --- |
+| macOS Apple芯片 / Intel | [Qoder-Model-Bridge-1.1.4-beta.1-macos-universal.dmg](https://github.com/wangyinlong-wang/qoder-model-bridge/releases/download/v1.1.4-beta.1/Qoder-Model-Bridge-1.1.4-beta.1-macos-universal.dmg) |
+| Windows 10/11 x64 | [Qoder-Model-Bridge-1.1.4-beta.1-windows-x64-setup.exe](https://github.com/wangyinlong-wang/qoder-model-bridge/releases/download/v1.1.4-beta.1/Qoder-Model-Bridge-1.1.4-beta.1-windows-x64-setup.exe) |
+| 可选IDEA桥接（两安装包也已包含） | [qoder-local-model-bridge-0.1.2.zip](https://github.com/wangyinlong-wang/qoder-model-bridge/releases/download/v1.1.4-beta.1/qoder-local-model-bridge-0.1.2.zip) |
+| 第三方对应源码 / 校验 | [对应源码ZIP](https://github.com/wangyinlong-wang/qoder-model-bridge/releases/download/v1.1.4-beta.1/Qoder-Model-Bridge-1.1.4-beta.1-third-party-sources.zip) / [SHA256SUMS](https://github.com/wangyinlong-wang/qoder-model-bridge/releases/download/v1.1.4-beta.1/SHA256SUMS) |
+
+安装包自带运行时；Mac为ad-hoc签名、未公证，Windows未做Authenticode签名。Windows本版只做安装器编译、解包与静态检查，**未完成Windows实机验收**。安装、升级和系统放行步骤见[安装指南](docs/INSTALLATION.md#mac--windows-发行应用)，实际覆盖见[兼容范围](docs/COMPATIBILITY.md)。源码运行方式保留如下。
+
+历史Mac1.1.3和Windows1.1.2内部安装包不作为公开资产。构建输入见 [BUILD.md](BUILD.md)；fresh clone不包含完整runtime/wheels。
 
 ## 适合哪些场景
 
@@ -57,7 +70,7 @@ py -3.13 -m venv .venv
 ## 最短使用流程
 
 1. 准备你能访问的网关、API Key 和可用模型。网关必须提供 `GET <Base URL>/models`（非空 `data` 数组、有效 `id`）与 `POST <Base URL>/chat/completions`；流式请求还需SSE支持。示例地址 `http://127.0.0.1:3000/v1` 只是占位，本项目不会在该地址提供模型服务；请填写你自己的 Base URL。
-2. 选择客户端。Qoder IDE 首次设置时，先正常退出所选 IDE，再点击「连接 / 启动 Qoder IDE」并完成客户端登录。IDEA 可选择手动模式，或按[安装指南](docs/INSTALLATION.md#idea-桥接插件)构建和启用桥接。
+2. 选择客户端。Qoder IDE 首次设置时，先正常退出所选 IDE，再点击「连接 / 启动 Qoder IDE」并完成客户端登录。IDEA 可选择手动模式，或按[安装指南](docs/INSTALLATION.md#idea-桥接插件)安装随包桥接。
 3. 输入 Base URL 和 Key，点击「1. 验证 Key 并拉取模型」。仅在上游确实无需鉴权时选择「上游明确无需鉴权」。
 4. 勾选模型，点击「一键加入映射」，核对**源模型 ID → 实际转发 ID**。显示名称不是实际请求 ID，也不能证明模型版本。
 5. 点击「2. 启动 Qoder 转发」，再按需使用原生导入按钮。使用 Qoder IDE 模型时保持本地转发运行。

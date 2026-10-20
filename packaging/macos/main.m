@@ -6,7 +6,7 @@ static int failStartup(PyStatus status, int argc) {
     fprintf(stderr, "%s\n", message);
     if (argc == 1) {
         NSAlert *alert = [[NSAlert alloc] init];
-        alert.messageText = @"Qoder 内网模型接入无法启动";
+        alert.messageText = @"Qoder Model Bridge 无法启动";
         alert.informativeText = [NSString stringWithUTF8String:message];
         [alert addButtonWithTitle:@"确定"];
         [alert runModal];

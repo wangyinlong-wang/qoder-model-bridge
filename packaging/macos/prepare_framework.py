@@ -1,4 +1,5 @@
 """Bundle the official universal2 Python runtime and relocate its Mach-O libraries."""
+import argparse
 import json
 import os
 from pathlib import Path
@@ -8,8 +9,12 @@ import shutil
 import subprocess
 
 BUILD = Path(__file__).resolve().parent
-SOURCE = BUILD / "python-pkg/Python_Framework.pkg/Payload/Versions/3.13"
-APP = BUILD / "Qoder 内网模型接入.app"
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument("--framework-source", type=Path, default=BUILD / "python-pkg/Python_Framework.pkg/Payload/Versions/3.13")
+parser.add_argument("--app", type=Path, default=BUILD / "Qoder Model Bridge.app")
+args = parser.parse_args()
+SOURCE = args.framework_source.resolve()
+APP = args.app.resolve()
 CONTENTS = APP / "Contents"
 FRAMEWORKS = CONTENTS / "Frameworks"
 PYTHON = FRAMEWORKS / "Python.framework/Versions/3.13"
@@ -48,11 +53,7 @@ shutil.copy2(SOURCE / "bin/python3.13", RUNTIME / "bin/python3.13")
 (RUNTIME / "bin/python3").symlink_to("python3.13")
 (CONTENTS / "MacOS").mkdir()
 with (CONTENTS / "Info.plist").open("wb") as output:
-    plistlib.dump({"CFBundleExecutable": "QoderInternalProxy", "CFBundleIdentifier": "local.qoder.internalproxy",
-                  "CFBundleName": "Qoder 内网模型接入", "CFBundleDisplayName": "Qoder 内网模型接入",
-                  "CFBundlePackageType": "APPL", "CFBundleShortVersionString": "1.0.0", "CFBundleVersion": "1.0.0",
-                  "LSMinimumSystemVersion": "12.0", "NSHighResolutionCapable": True,
-                  "NSPrincipalClass": "NSApplication"}, output)
+    plistlib.dump(plistlib.loads((BUILD / "Info.plist").read_bytes()), output)
 
 magic = {b"\xfe\xed\xfa\xce", b"\xce\xfa\xed\xfe", b"\xfe\xed\xfa\xcf", b"\xcf\xfa\xed\xfe",
          b"\xca\xfe\xba\xbe", b"\xbe\xba\xfe\xca", b"\xca\xfe\xba\xbf", b"\xbf\xba\xfe\xca"}
@@ -109,5 +110,5 @@ for path in machos:
     result = subprocess.run(["/usr/bin/codesign", "--force", "--sign", "-", "--timestamp=none", str(path)],
                             capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
-(BUILD / "framework-relocation.json").write_text(json.dumps(relocated, ensure_ascii=False, indent=2))
+(APP.parent / "framework-relocation.json").write_text(json.dumps(relocated, ensure_ascii=False, indent=2))
 print(json.dumps({"application": str(APP), "runtime_machos": len(machos)}, ensure_ascii=False))

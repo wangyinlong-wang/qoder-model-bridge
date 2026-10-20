@@ -14,6 +14,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--ide-home", type=Path, default=Path("/Applications/IntelliJ IDEA.app/Contents"))
     parser.add_argument("--qoder-plugin", type=Path, required=True)
+    parser.add_argument("--build-dir", type=Path, default=ROOT / ".build")
     parser.add_argument("--test", action="store_true")
     args = parser.parse_args()
     ide = args.ide_home
@@ -24,7 +25,7 @@ def main():
         raise SystemExit("IDEA bundled javac was not found; specify --ide-home")
     jars = sorted((ide / "lib").glob("*.jar")) + sorted((args.qoder_plugin / "lib").glob("*.jar"))
     classpath = os.pathsep.join(str(path) for path in jars)
-    build = ROOT / ".build"
+    build = args.build_dir.resolve()
     classes = build / "classes"
     if classes.exists():
         shutil.rmtree(classes)
@@ -45,6 +46,10 @@ def main():
             if not path.name.startswith("LocalBridgeTest"):
                 archive.write(path, path.relative_to(classes).as_posix())
         archive.write(ROOT / "resources/META-INF/plugin.xml", "META-INF/plugin.xml")
+        archive.write(ROOT.parents[1] / "LICENSE", "META-INF/LICENSE.txt")
+        archive.writestr("META-INF/NOTICE.txt", "Qoder Model Bridge optional IntelliJ bridge.\n"
+                          "Only this project's compiled classes and plugin metadata are bundled.\n"
+                          "IntelliJ IDEA and Qoder libraries are compile-time inputs and are not redistributed.\n")
     with zipfile.ZipFile(artifact, "w", zipfile.ZIP_DEFLATED) as archive:
         archive.write(jar, "qoder-internal-bridge/lib/qoder-internal-bridge.jar")
     print("BUILT", artifact)

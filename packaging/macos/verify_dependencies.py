@@ -1,4 +1,5 @@
 """Check each macOS architecture's complete, hashed binary dependency set."""
+import argparse
 from collections import deque
 from email.parser import BytesParser
 import hashlib
@@ -12,7 +13,10 @@ from pip._vendor.packaging.requirements import Requirement
 from pip._vendor.packaging.specifiers import SpecifierSet
 from pip._vendor.packaging.utils import canonicalize_name, parse_wheel_filename
 
-BUILD = Path(__file__).resolve().parent
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument("--build-dir", type=Path, default=Path(__file__).resolve().parent)
+args = parser.parse_args()
+BUILD = args.build_dir.resolve()
 reports = {}
 for resolver, architecture in [("aarch64", "arm64"), ("x86_64", "x86_64")]:
     target_tags = set(TargetPython(platforms=["macosx_12_0_" + architecture], py_version_info=(3, 13, 16),

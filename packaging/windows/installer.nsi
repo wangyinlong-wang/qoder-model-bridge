@@ -12,7 +12,8 @@ Unicode true
   !error "Define OUTPUT_FILE as the installer executable path."
 !endif
 
-!define APP_NAME "Qoder 内网模型接入"
+!define APP_NAME "Qoder Model Bridge"
+!define LEGACY_APP_NAME "Qoder 内网模型接入"
 !define APP_ID "qoder-internal-proxy-offline-1"
 !define APP_KEY "Software\QoderInternalProxy"
 !define UNINSTALL_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\QoderInternalProxy"
@@ -26,21 +27,21 @@ SetCompressor zlib
 CRCCheck on
 ShowInstDetails show
 ShowUninstDetails show
-VIProductVersion "1.1.2.0"
-VIAddVersionKey "ProductName" "Qoder Internal Proxy Offline Installer"
-VIAddVersionKey "FileDescription" "Offline installer for the local internal-model helper"
-VIAddVersionKey "FileVersion" "1.1.2"
-VIAddVersionKey "ProductVersion" "1.1.2"
+VIProductVersion "1.1.4.0"
+VIAddVersionKey "ProductName" "Qoder Model Bridge"
+VIAddVersionKey "FileDescription" "Qoder Model Bridge 1.1.4-beta.1 offline installer"
+VIAddVersionKey "FileVersion" "1.1.4"
+VIAddVersionKey "ProductVersion" "1.1.4"
 VIAddVersionKey "LegalCopyright" "Bundled third-party notices are preserved."
 
 !define MUI_ABORTWARNING
-!define MUI_WELCOMEPAGE_TEXT "安装本地模型接入工具、Python 和全部组件。安装过程无需联网。$\r$\n$\r$\n适用于 Windows 10/11 x64，默认安装到当前用户目录。使用模型时仍需访问内网网关。$\r$\n$\r$\n请先停止转发并关闭已打开的工具窗口。"
+!define MUI_WELCOMEPAGE_TEXT "安装 Qoder Model Bridge、Python 和随包组件。安装过程无需联网。$\r$\n$\r$\n实验性 1.1.4-beta.1，面向 Windows 10/11 x64；本版未完成 Windows 实机验收。使用模型时仍需访问你自己的模型网关。$\r$\n$\r$\n请先停止转发并关闭已打开的工具窗口。"
 !insertmacro MUI_PAGE_WELCOME
 !define MUI_PAGE_CUSTOMFUNCTION_LEAVE ValidateInstallDirectory
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
 !define MUI_FINISHPAGE_RUN
-!define MUI_FINISHPAGE_RUN_TEXT "打开 Qoder 内网模型接入"
+!define MUI_FINISHPAGE_RUN_TEXT "打开 Qoder Model Bridge"
 !define MUI_FINISHPAGE_RUN_FUNCTION LaunchApplication
 !insertmacro MUI_PAGE_FINISH
 !insertmacro MUI_UNPAGE_CONFIRM
@@ -63,7 +64,9 @@ Function .onInit
     Abort
   ${EndIf}
   FindWindow $0 "" "${APP_NAME}"
+  FindWindow $1 "" "${LEGACY_APP_NAME}"
   ${If} $0 != 0
+  ${OrIf} $1 != 0
     MessageBox MB_OK|MB_ICONSTOP "请先在工具窗口停止转发并关闭窗口，再重新运行安装器。"
     Abort
   ${EndIf}
@@ -113,7 +116,7 @@ Section "离线安装" SEC_MAIN
   Call ValidateInstallDirectory
   SetOutPath "$INSTDIR"
   WriteINIStr "$INSTDIR\qoder-install.ini" "Installation" "Id" "${APP_ID}"
-  WriteINIStr "$INSTDIR\qoder-install.ini" "Installation" "Version" "1.1.2"
+  WriteINIStr "$INSTDIR\qoder-install.ini" "Installation" "Version" "1.1.4"
   !include "install-files.nsh"
   SetOutPath "$INSTDIR"
   WriteUninstaller "$INSTDIR\Uninstall.exe"
@@ -131,6 +134,13 @@ Section "离线安装" SEC_MAIN
     SetErrorLevel 1
     Abort
   ${EndIf}
+  ; Remove only this application's known legacy shortcut names after setup succeeds.
+  Delete "$DESKTOP\${LEGACY_APP_NAME}.lnk"
+  Delete "$SMPROGRAMS\${LEGACY_APP_NAME}\${LEGACY_APP_NAME}.lnk"
+  Delete "$SMPROGRAMS\${LEGACY_APP_NAME}\环境检查.lnk"
+  Delete "$SMPROGRAMS\${LEGACY_APP_NAME}\安装使用说明.lnk"
+  Delete "$SMPROGRAMS\${LEGACY_APP_NAME}\卸载.lnk"
+  RMDir "$SMPROGRAMS\${LEGACY_APP_NAME}"
   CreateDirectory "$SMPROGRAMS\${APP_NAME}"
   CreateShortCut "$DESKTOP\${APP_NAME}.lnk" "$INSTDIR\${PYTHON_DIR}\pythonw.exe" '-X utf8 "$INSTDIR\launcher.py"'
   CreateShortCut "$SMPROGRAMS\${APP_NAME}\${APP_NAME}.lnk" "$INSTDIR\${PYTHON_DIR}\pythonw.exe" '-X utf8 "$INSTDIR\launcher.py"'
@@ -139,7 +149,7 @@ Section "离线安装" SEC_MAIN
   CreateShortCut "$SMPROGRAMS\${APP_NAME}\卸载.lnk" "$INSTDIR\Uninstall.exe"
   WriteRegStr HKCU "${APP_KEY}" "InstallDir" "$INSTDIR"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayName" "${APP_NAME}（离线安装版）"
-  WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayVersion" "1.1.2"
+  WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayVersion" "1.1.4-beta.1"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "InstallLocation" "$INSTDIR"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayIcon" "$INSTDIR\${PYTHON_DIR}\pythonw.exe"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "UninstallString" '"$INSTDIR\Uninstall.exe"'
@@ -167,7 +177,9 @@ Function un.onInit
     Abort
   ${EndIf}
   FindWindow $0 "" "${APP_NAME}"
+  FindWindow $1 "" "${LEGACY_APP_NAME}"
   ${If} $0 != 0
+  ${OrIf} $1 != 0
     MessageBox MB_OK|MB_ICONSTOP "请先在工具窗口停止转发并关闭窗口，再重新卸载。"
     Abort
   ${EndIf}
@@ -264,6 +276,12 @@ Section "Uninstall"
   Delete "$SMPROGRAMS\${APP_NAME}\安装使用说明.lnk"
   Delete "$SMPROGRAMS\${APP_NAME}\卸载.lnk"
   RMDir "$SMPROGRAMS\${APP_NAME}"
+  Delete "$DESKTOP\${LEGACY_APP_NAME}.lnk"
+  Delete "$SMPROGRAMS\${LEGACY_APP_NAME}\${LEGACY_APP_NAME}.lnk"
+  Delete "$SMPROGRAMS\${LEGACY_APP_NAME}\环境检查.lnk"
+  Delete "$SMPROGRAMS\${LEGACY_APP_NAME}\安装使用说明.lnk"
+  Delete "$SMPROGRAMS\${LEGACY_APP_NAME}\卸载.lnk"
+  RMDir "$SMPROGRAMS\${LEGACY_APP_NAME}"
   DeleteRegKey HKCU "${UNINSTALL_KEY}"
   DeleteRegKey HKCU "${APP_KEY}"
   Delete "$INSTDIR\qoder-install.ini"
