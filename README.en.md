@@ -19,6 +19,8 @@ The independent **Qoder desktop Agent** and **Qoder IDE** are separate products.
 
 ## Distribution status
 
+The local vision-fix candidate is **1.1.4-beta.2**, with the corrected application and IDEA bridge **0.1.3** in both desktop packages. It has not been published. Use the locally delivered files and their accompanying `SHA256SUMS`; the public links below still refer to beta.1. See the [vision synchronization instructions](docs/INSTALLATION.md#图片能力与已有模型同步).
+
 The first public version is the experimental **v1.1.4-beta.1** prerelease. Open its [GitHub release page](https://github.com/wangyinlong-wang/qoder-model-bridge/releases/tag/v1.1.4-beta.1) and select:
 
 - macOS universal: [Qoder-Model-Bridge-1.1.4-beta.1-macos-universal.dmg](https://github.com/wangyinlong-wang/qoder-model-bridge/releases/download/v1.1.4-beta.1/Qoder-Model-Bridge-1.1.4-beta.1-macos-universal.dmg)

@@ -4,10 +4,44 @@ import sys
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from launcher import display_name, idea_import_models, selected_mappings, suggest_source_id
+from launcher import display_name, idea_import_models, model_vision, selected_mappings, suggest_source_id
 
 
 class BatchMappingTests(unittest.TestCase):
+    def test_image_input_metadata_is_recognized_without_guessing_from_names(self):
+        cases = [
+            ({"id": "vision-super-model"}, None),
+            ({"capabilities": {"vision": False}, "architecture": {"input_modalities": ["text", "image"]}}, False),
+            ({"capabilities": {"vision": True}}, True),
+            ({"architecture": {"input_modalities": ["text", "IMAGE"]}}, True),
+            ({"input_modalities": ["text"]}, False),
+            ({"input_modalities": []}, None),
+            ({"input_modalities": ["image", None]}, None),
+            ({"output_modalities": ["image"]}, None),
+            ({"vision": "true"}, None),
+            ({"is_vl": True}, True),
+        ]
+        for model, expected in cases:
+            with self.subTest(model=model):
+                self.assertIs(model_vision(model), expected)
+
+    def test_manual_vision_override_preserves_upstream_data_and_mapping(self):
+        models = {"qd/fixture": {"id": "qd/fixture", "capabilities": {"vision": True}}}
+        mapping = {"my-model": "qd/fixture"}
+        value = idea_import_models(models, models, mapping, {}, {}, vision_overrides={"qd/fixture": False})
+        self.assertIs(value[0]["vision"], False)
+        self.assertIs(models["qd/fixture"]["capabilities"]["vision"], True)
+        self.assertEqual(mapping, {"my-model": "qd/fixture"})
+        with self.assertRaises(ValueError):
+            idea_import_models(models, models, mapping, {}, {}, vision_overrides={"qd/fixture": "true"})
+
+    def test_input_modality_declaration_reaches_import_but_unknown_stays_unspecified(self):
+        models = {"qd/fixture": {"id": "qd/fixture", "input_modalities": ["text", "image"]}}
+        mapping = {"my-model": "qd/fixture"}
+        self.assertIs(idea_import_models(models, models, mapping, {}, {})[0]["vision"], True)
+        del models["qd/fixture"]["input_modalities"]
+        self.assertNotIn("vision", idea_import_models(models, models, mapping, {}, {})[0])
+
     def test_upstream_declared_name_does_not_prove_its_actual_version(self):
         name, source = display_name("qd/gmodel", {"name": "Upstream Model v99"}, {"gmodel": "IDE reference"}, "qoder_ide")
         self.assertEqual(name, "Upstream Model v99")

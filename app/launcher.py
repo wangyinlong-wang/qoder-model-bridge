@@ -32,6 +32,7 @@ REFERENCE_NAMES = {
 REFERENCE_SOURCE = "内置参考名称（JetBrains 2026.924.75731882，2026-10-16）"
 CONFIG_FIELDS = {"base_url", "listen_port", "no_auth", "model_map", "qoder_enabled", "manage_qoder_proxy",
                  "integration_mode", "client_type", "client_edition", "client_path"}
+VISION_CHOICES = {"按上游声明": None, "支持图片": True, "不支持图片": False}
 
 
 def get_integration_mode(config):
@@ -195,7 +196,23 @@ def selected_mappings(selected_ids, models, catalog, source_models, existing, cl
     return additions, sorted(conflicts), unchanged
 
 
-def idea_import_models(selected_ids, models, mapping, catalog, source_models, client_type="idea"):
+def model_vision(model):
+    """Read declared input capabilities; model names and output modalities are not evidence."""
+    caps = model.get("capabilities")
+    caps = caps if isinstance(caps, dict) else {}
+    for value in (caps.get("vision"), model.get("vision"), model.get("is_vl")):
+        if type(value) is bool:
+            return value
+    architecture = model.get("architecture")
+    architecture = architecture if isinstance(architecture, dict) else {}
+    for value in (architecture.get("input_modalities"), model.get("input_modalities")):
+        if isinstance(value, list) and value and all(isinstance(item, str) and item.strip() for item in value):
+            return "image" in {item.strip().lower() for item in value}
+    return None
+
+
+def idea_import_models(selected_ids, models, mapping, catalog, source_models, client_type="idea",
+                       vision_overrides=None):
     result = []
     for mid in selected_ids:
         if mid not in models:
@@ -219,9 +236,15 @@ def idea_import_models(selected_ids, models, mapping, catalog, source_models, cl
         context = models[mid].get("context_length", caps.get("contextWindow"))
         if type(context) is int and 0 < context <= 10_000_000:
             item["context_length"] = context
-        for key in ("vision", "reasoning"):
-            if type(caps.get(key)) is bool:
-                item[key] = caps[key]
+        vision = model_vision(models[mid])
+        if vision_overrides and mid in vision_overrides:
+            vision = vision_overrides[mid]
+            if type(vision) is not bool:
+                raise ValueError("手动图片能力必须明确为支持或不支持。")
+        if vision is not None:
+            item["vision"] = vision
+        if type(caps.get("reasoning")) is bool:
+            item["reasoning"] = caps["reasoning"]
         result.append(item)
     return result
 
@@ -374,6 +397,9 @@ class App:
         self.auto_start = initial.get("_connect_on_start", False)
         self.auth_no_auth = False
         self.catalog = {}
+        self.vision_overrides = {}
+        self.vision_choice = tk.StringVar(value="按上游声明")
+        self.update_existing_vision = tk.BooleanVar(value=False)
         root.title("Qoder Model Bridge")
         root.geometry("1080x880")
         root.minsize(850, 760)
@@ -453,7 +479,7 @@ class App:
         self.ide_import_button = ttk.Button(self.ide_import_controls, text="一键添加到所选 Qoder IDE",
                                             command=self.import_to_client, state="disabled")
         self.ide_import_button.pack(side="left")
-        ttk.Label(self.ide_import_controls, text="使用原生校验和安全存储；已存在模型跳过，上游 Key 不写入客户端。").pack(side="left", padx=12)
+        ttk.Label(self.ide_import_controls, text="新模型使用原生校验；同步已有模型时只更新图片能力，上游 Key 不写入客户端。").pack(side="left", padx=12)
         self.catalog_status = tk.StringVar(value="尚未拉取模型；参考名称不代表实际上游型号或版本。")
         ttk.Label(batch, textvariable=self.catalog_status, wraplength=1000).pack(anchor="w", pady=(4, 6))
         columns = ("checked", "name", "remote", "capability", "source")
@@ -474,6 +500,16 @@ class App:
         self.model_details_label = ttk.Label(batch, textvariable=self.model_details, wraplength=1000, justify="left")
         self.model_details_label.pack(fill="x", pady=(4, 0))
         self.model_details_label.bind("<Configure>", lambda event: self.model_details_label.configure(wraplength=max(200, event.width - 4)))
+        vision_controls = ttk.Frame(batch_controls)
+        vision_controls.pack(side="right")
+        ttk.Label(vision_controls, text="所选行图片").pack(side="left")
+        self.vision_choices = ttk.Combobox(vision_controls, textvariable=self.vision_choice,
+                                          values=list(VISION_CHOICES), width=12, state="disabled")
+        self.vision_choices.pack(side="left", padx=4)
+        self.vision_choices.bind("<<ComboboxSelected>>", self.change_vision)
+        self.vision_sync_button = ttk.Checkbutton(vision_controls, text="同步已有图片能力",
+                                                  variable=self.update_existing_vision)
+        self.vision_sync_button.pack(side="left")
         ttk.Label(frame, text="勾选后批量生成下方映射，同名冲突保留原映射。运行中请先停止转发再改映射；下方仍可单条编辑。", wraplength=1000).pack(anchor="w", pady=(10, 4))
         editor = ttk.Frame(frame)
         editor.pack(fill="x")
@@ -603,10 +639,14 @@ class App:
                 raise ValueError("请先启动转发，再一键添加模型。")
             selected = [mid for mid in self.models if mid in self.checked_models]
             models = idea_import_models(selected, self.models, self.mapping, self.catalog, self.source_models,
-                                        self.active_client)
+                                        self.active_client, self.vision_overrides)
             if not models:
                 raise ValueError("请先勾选要添加的模型。")
             port = int(self.port.get())
+            update_vision = bool(self.update_existing_vision.get())
+            import_options = {"models": models, "proxy_port": port}
+            if update_vision:
+                import_options["update_existing_vision"] = True
         except (ValueError, TypeError) as error:
             self.error(str(error))
             return
@@ -617,7 +657,7 @@ class App:
         client = self.ide_client
         def run():
             try:
-                self.events.put(("client_import_result", client.request("import", models=models, proxy_port=port)))
+                self.events.put(("client_import_result", client.request("import", **import_options)))
             except Exception as error:
                 self.events.put(("client_import_error", str(error) if isinstance(error, ValueError)
                                  else "客户端连接中断，请先检查模型列表；未自动重复提交。"))
@@ -658,7 +698,7 @@ class App:
             self.refresh_idea_bridges()
         else:
             self.idea_controls.pack_forget()
-            self.mode_hint.set("手动添加：不检查 IDEA 版本。启动转发后，在 Qoder 原生设置中添加相同的模型 ID，密钥填 local-proxy。")
+            self.mode_hint.set("手动模式不检查 IDEA 版本，也不回写图片能力；需要同步时切换桥接导入。原生模型 ID 与映射一致，密钥填 local-proxy。")
         self.update_batch_controls()
 
     def fetch(self):
@@ -734,7 +774,11 @@ class App:
             caps = model.get("capabilities")
             caps = caps if isinstance(caps, dict) else {}
             context = model.get("context_length", caps.get("contextWindow", "未知"))
-            tools, vision = caps.get("tools", "未知"), caps.get("vision", "未知")
+            tools = caps.get("tools", "未知")
+            vision = self.vision_overrides.get(mid, model_vision(model))
+            vision = "未知" if vision is None else vision
+            if mid in self.vision_overrides:
+                vision = f"{vision}（手动）"
             checked = "☑" if mid in self.checked_models else "☐"
             self.table.insert("", "end", iid=mid, values=(checked, name, mid,
                               f"上下文 {context} / 工具 {tools} / 视觉 {vision}", source))
@@ -750,12 +794,30 @@ class App:
             row = self.table.item(target, "values")
             self.model_details.set(f"所选模型 {target}：{row[1]}\n{row[4]}")
             self.target_id.set(target)
+            choice = self.vision_overrides.get(target)
+            self.vision_choice.set(next(label for label, value in VISION_CHOICES.items() if value is choice))
             if not self.source_id.get() or self.source_id.get() == self.auto_source:
                 self.auto_source = suggest_source_id(target, self.models[target], self.catalog, self.source_models,
                                                      self.active_client, self.mapping)
                 self.source_id.set(self.auto_source)
         else:
             self.model_details.set("选中模型行，可在此查看完整名称来源与版本说明。")
+            self.vision_choice.set("按上游声明")
+        self.vision_choices.configure(state="readonly" if selected and not (
+            self.importing or self.fetching or self.client_connecting) else "disabled")
+
+    def change_vision(self, _event=None):
+        selected = self.table.selection()
+        if not selected or self.importing or self.fetching or self.client_connecting:
+            return
+        model_id = selected[0]
+        value = VISION_CHOICES.get(self.vision_choice.get())
+        if value is None:
+            self.vision_overrides.pop(model_id, None)
+        else:
+            self.vision_overrides[model_id] = value
+        self.refresh_model_rows()
+        self.status.set("图片能力已设置；手动选择仅本次有效。需要修正已有模型时，勾选同步图片能力后再执行导入。")
 
     def update_batch_controls(self):
         self.batch_count.set(f"已勾选 {len(self.checked_models)} / {len(self.models)}")
@@ -775,6 +837,10 @@ class App:
         can_import = (self.active_client == "idea" and self.active_mode == "bridge" and self.checked_models and running
                       and self.idea_target.get() in self.idea_endpoints and not self.importing)
         self.idea_import_button.configure(state="normal" if can_import else "disabled")
+        busy = self.importing or self.fetching or self.client_connecting
+        can_sync = self.active_client == "qoder_ide" or self.active_mode == "bridge"
+        self.vision_sync_button.configure(state="normal" if can_sync and not busy else "disabled")
+        self.vision_choices.configure(state="readonly" if self.table.selection() and not busy else "disabled")
 
     def refresh_idea_bridges(self):
         if self.active_client != "idea" or self.active_mode != "bridge":
@@ -795,10 +861,13 @@ class App:
             if endpoint is None:
                 raise ValueError("请先安装并启用 IDEA 桥接插件，再点击刷新桥接。")
             selected = [mid for mid in self.models if mid in self.checked_models]
-            models = idea_import_models(selected, self.models, self.mapping, self.catalog, self.source_models)
+            models = idea_import_models(selected, self.models, self.mapping, self.catalog, self.source_models,
+                                        vision_overrides=self.vision_overrides)
             if not models:
                 raise ValueError("请先勾选要添加的模型。")
             request = {"request_id": str(uuid.uuid4()), "proxy_port": int(self.port.get()), "models": models}
+            if self.update_existing_vision.get():
+                request["update_existing_vision"] = True
         except (ValueError, TypeError) as error:
             self.error(str(error))
             return
@@ -808,6 +877,10 @@ class App:
         self.status.set("正在连接 IDEA；Qoder 原生窗口会预选这些模型。请在 IDEA 输入 local-proxy 并确认，内网 Key 不会发送给桥接。")
         def run():
             try:
+                if request.get("update_existing_vision"):
+                    health = endpoint.request("/v1/health")
+                    if health.get("supports_update_vision") is not True:
+                        raise ValueError("当前 IDEA 桥接不能同步图片能力，请安装新版桥接（0.1.3 或更高）。")
                 config = rpc("config/getGlobal")
                 if config.get("proxyMode") != "manual" or config.get("httpProxy") != f"http://127.0.0.1:{request['proxy_port']}":
                     raise ValueError("Qoder 当前代理与本窗口不一致，请先连接本窗口的转发代理。")
@@ -1028,8 +1101,11 @@ class App:
                 if value["context"] != current:
                     continue
                 self.fetching = False
+                if value["base"] != self.auth_base:
+                    self.vision_overrides.clear()
                 self.auth_base, self.key, self.auth_no_auth = value["base"], value["key"], value["no_auth"]
                 self.models, self.source_models, self.catalog = value["models"], value["sources"], value["catalog"]
+                self.vision_overrides = {mid: enabled for mid, enabled in self.vision_overrides.items() if mid in self.models}
                 self.catalog_status.set(value["catalog_note"])
                 self.base.set(self.auth_base)
                 self.password.set("")
@@ -1068,7 +1144,7 @@ class App:
                 self.update_batch_controls()
             elif kind == "idea_progress":
                 self.status.set("请在 IDEA 的 Qoder 原生窗口输入 local-proxy 并确认。" if value == "awaiting_user"
-                                else "IDEA 正在验证并保存新模型，已有模型保持原配置。")
+                                else "IDEA 正在处理模型；仅在勾选同步时更新已有模型的图片能力。")
             elif kind in ("idea_result", "idea_error", "client_import_result", "client_import_error"):
                 self.importing = False
                 if self.process and self.process.poll() is None:
@@ -1078,8 +1154,12 @@ class App:
                     self.status.set(value)
                     self.error(value)
                 else:
-                    counts = f"新增 {len(value.get('added', []))}，已存在 {len(value.get('skipped', []))}，失败 {len(value.get('failed', []))}，未勾选 {len(value.get('unselected', []))}。"
+                    counts = (f"新增 {len(value.get('added', []))}，图片能力更新 {len(value.get('updated', []))}，"
+                              f"已存在 {len(value.get('skipped', []))}，失败 {len(value.get('failed', []))}，"
+                              f"未勾选 {len(value.get('unselected', []))}。")
                     message = counts + value.get("message", "")
+                    if kind == "client_import_result" and value.get("updated"):
+                        message += "请重新选择模型或新建会话以加载图片能力。"
                     if kind == "client_import_result" and value.get("failed"):
                         message += "请检查客户端中的实际结果：" + "；".join(
                             f"{item.get('source_id', '')}: {item.get('native_code') or item.get('code', '')}" for item in value["failed"][:4])

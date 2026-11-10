@@ -16,7 +16,7 @@ import java.util.function.Consumer;
 
 /** Authenticated loopback transport. It accepts model metadata, never provider credentials. */
 public final class LocalBridge implements AutoCloseable {
-    public static final String VERSION = "0.1.2";
+    public static final String VERSION = "0.1.3";
     private static final int MAX_BODY = 128 * 1024;
     private static final Gson JSON = new Gson();
     private static final Set<String> TERMINAL = Set.of("completed", "partial", "cancelled", "failed");
@@ -32,12 +32,12 @@ public final class LocalBridge implements AutoCloseable {
 
     public record Model(String sourceId, String targetId, String displayName, Integer contextLength,
                         Boolean vision, Boolean reasoning) {}
-    public record Request(String requestId, int proxyPort, List<Model> models) {}
+    public record Request(String requestId, int proxyPort, List<Model> models, boolean updateExistingVision) {}
 
     public static final class Job {
         public final Request request;
         private String status = "queued";
-        private List<String> added = List.of(), skipped = List.of(), failed = List.of(), unselected = List.of();
+        private List<String> added = List.of(), updated = List.of(), skipped = List.of(), failed = List.of(), unselected = List.of();
         private String code = "", message = "";
 
         private Job(Request request) { this.request = request; }
@@ -45,6 +45,7 @@ public final class LocalBridge implements AutoCloseable {
         public synchronized boolean cancelled() { return status.equals("cancelled"); }
         public synchronized void waiting() { if (!terminal()) status = "awaiting_user"; }
         public synchronized void saving() { if (!terminal()) status = "saving"; }
+        public synchronized void setUpdated(List<String> models) { if (!terminal()) updated = List.copyOf(models); }
         public synchronized void finish(String state, List<String> added, List<String> skipped,
                                         List<String> failed, List<String> unselected, String code, String message) {
             if (terminal()) return;
@@ -60,7 +61,7 @@ public final class LocalBridge implements AutoCloseable {
             finish("failed", List.of(), List.of(), List.of(), List.of(), code, message);
         }
         public synchronized Map<String, Object> snapshot() {
-            return Map.of("request_id", request.requestId(), "status", status, "added", added,
+            return Map.of("request_id", request.requestId(), "status", status, "added", added, "updated", updated,
                     "skipped", skipped, "failed", failed, "unselected", unselected,
                     "error_code", code, "message", message);
         }
@@ -159,6 +160,7 @@ public final class LocalBridge implements AutoCloseable {
                 health.put("service", "qoder-internal-bridge");
                 health.put("protocol", 1);
                 health.put("version", VERSION);
+                health.put("supports_update_vision", true);
                 health.put("instance_id", instanceId);
                 respond(exchange, 200, health);
             } else if (path.equals("/v1/imports") && exchange.getRequestMethod().equals("POST")) {
@@ -212,7 +214,7 @@ public final class LocalBridge implements AutoCloseable {
 
     public static Request parse(String body) {
         JsonObject root = JsonParser.parseString(body).getAsJsonObject();
-        fields(root, Set.of("request_id", "proxy_port", "models"));
+        fields(root, Set.of("request_id", "proxy_port", "models", "update_existing_vision"));
         String id = text(root, "request_id", 36);
         if (!UUID.fromString(id).toString().equals(id)) throw new IllegalArgumentException();
         int port = integer(root, "proxy_port", 1, 65535);
@@ -230,7 +232,7 @@ public final class LocalBridge implements AutoCloseable {
             Integer context = item.has("context_length") ? integer(item, "context_length", 1, 10_000_000) : null;
             models.add(new Model(source, target, name, context, bool(item, "vision"), bool(item, "reasoning")));
         }
-        return new Request(id, port, List.copyOf(models));
+        return new Request(id, port, List.copyOf(models), Boolean.TRUE.equals(bool(root, "update_existing_vision")));
     }
 
     private static void fields(JsonObject object, Set<String> allowed) {

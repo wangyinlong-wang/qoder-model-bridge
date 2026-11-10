@@ -42,6 +42,7 @@ parser.add_argument("--licenses", type=Path, required=True, help="complete macOS
 parser.add_argument("--bridge", type=Path, required=True, help="public-source IDEA bridge ZIP")
 parser.add_argument("--build-dir", type=Path, required=True, help="new isolated directory; must not exist")
 parser.add_argument("--release-version", required=True, help="asset version, for example 1.1.4-beta.1")
+parser.add_argument("--app-only", action="store_true", help="assemble and sign the app for validation without creating a DMG")
 args = parser.parse_args()
 for name in ("runtime_app", "python_headers", "licenses", "bridge", "build_dir"):
     setattr(args, name, getattr(args, name).resolve())
@@ -147,12 +148,15 @@ if inventory(args.licenses) != inventory(resources / "ThirdPartyLicenses"):
 artifacts = args.build_dir / "artifacts"
 artifacts.mkdir()
 dmg = artifacts / f"Qoder-Model-Bridge-{args.release_version}-macos-universal.dmg"
-run(["/usr/bin/hdiutil", "create", "-fs", "HFS+", "-format", "UDZO", "-volname",
-     "Qoder Model Bridge " + args.release_version, "-srcfolder", stage, dmg])
-run(["/usr/bin/hdiutil", "verify", dmg])
+if not args.app_only:
+    run(["/usr/bin/hdiutil", "create", "-fs", "HFS+", "-format", "UDZO", "-volname",
+         "Qoder Model Bridge " + args.release_version, "-srcfolder", stage, dmg])
+    run(["/usr/bin/hdiutil", "verify", dmg])
 report = {"release_version": args.release_version, "bundle_version": metadata["CFBundleVersion"],
-          "app": str(app), "dmg": str(dmg), "bytes": dmg.stat().st_size,
-          "sha256": hashlib.sha256(dmg.read_bytes()).hexdigest(), "source_sha256": source_hashes,
+          "app": str(app), "dmg": None if args.app_only else str(dmg),
+          "bytes": None if args.app_only else dmg.stat().st_size,
+          "sha256": None if args.app_only else hashlib.sha256(dmg.read_bytes()).hexdigest(),
+          "source_sha256": source_hashes,
           "runtime_copy_verified_before_signing": True, "runtime_input": str(args.runtime_app),
           "runtime_manifests": runtime_manifests, "licenses": inventory(resources / "ThirdPartyLicenses"),
           "documentation": document_hashes,

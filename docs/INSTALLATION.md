@@ -4,7 +4,9 @@
 
 ## 获取方式
 
-公开测试版使用 **v1.1.4-beta.1**。在[版本发行页](https://github.com/wangyinlong-wang/qoder-model-bridge/releases/tag/v1.1.4-beta.1)获取Mac DMG、Windows x64 EXE、可选IDEA桥接、第三方对应源码和 `SHA256SUMS`，也可按本文源码方式运行。历史Mac1.1.3 / Windows1.1.2内部安装包不是公开下载物。发行构建输入见 [BUILD.md](../BUILD.md)。
+本地图片能力修复候选为 **1.1.4-beta.2**，随包桥接为 **0.1.3**，尚未对外发布。使用本次交付的同版本DMG/EXE和校验文件。
+
+历史公开测试版使用 **v1.1.4-beta.1**。在[版本发行页](https://github.com/wangyinlong-wang/qoder-model-bridge/releases/tag/v1.1.4-beta.1)获取Mac DMG、Windows x64 EXE、可选IDEA桥接、第三方对应源码和 `SHA256SUMS`，也可按本文源码方式运行。历史Mac1.1.3 / Windows1.1.2内部安装包不是公开下载物。发行构建输入见 [BUILD.md](../BUILD.md)。
 
 公开版本界面为 Qoder Model Bridge；旧内部版本仍显示「Qoder 内网模型接入」。
 
@@ -66,20 +68,20 @@ py -3.13 -m venv .venv
 两平台包自带Python和转发依赖，安装时无需另装Python/JDK或联网下载依赖；使用模型仍需你自己的网关及所需Qoder服务。安装前从同一发行页下载 `SHA256SUMS`，核对对应文件的SHA256。例如：
 
 ```sh
-shasum -a 256 Qoder-Model-Bridge-1.1.4-beta.1-macos-universal.dmg
+shasum -a 256 Qoder-Model-Bridge-1.1.4-beta.2-macos-universal.dmg
 ```
 
 Windows PowerShell：
 
 ```powershell
-Get-FileHash .\Qoder-Model-Bridge-1.1.4-beta.1-windows-x64-setup.exe -Algorithm SHA256
+Get-FileHash .\Qoder-Model-Bridge-1.1.4-beta.2-windows-x64-setup.exe -Algorithm SHA256
 ```
 
 将结果与 `SHA256SUMS` 中对应文件一行逐字比较。
 
 ### macOS DMG
 
-1. 下载 `Qoder-Model-Bridge-1.1.4-beta.1-macos-universal.dmg`。目标macOS12+，同时包含arm64与x86_64；实际验收边界见[兼容表](COMPATIBILITY.md)。
+1. 下载 `Qoder-Model-Bridge-1.1.4-beta.2-macos-universal.dmg`。目标macOS12+，同时包含arm64与x86_64；实际验收边界见[兼容表](COMPATIBILITY.md)。
 2. 升级前在旧工具保存非秘密配置，停止转发并正常退出。旧中文应用名与新英文应用名可能并存；保留必要备份后将旧应用移出正式安装位置，避免同时打开两份。
 3. 打开DMG，将 `Qoder Model Bridge.app` 拖入Applications。弹出DMG后，从应用程序目录打开新应用。
 4. 本版仅ad-hoc签名，**没有Developer ID签名或Apple公证**。若系统阻止首次打开，先确认来源和SHA256，再按[Apple官方说明](https://support.apple.com/102445)在「系统设置 → 隐私与安全性」为该应用选择「仍要打开」，并完成系统要求的确认；组织策略可能禁止放行。不要关闭全局Gatekeeper或清除全局隔离属性。
@@ -88,12 +90,12 @@ DMG的 `Documentation/` 提供本文与说明，`IDEA Bridge/` 提供可选插�
 
 ### Windows EXE
 
-1. 下载 `Qoder-Model-Bridge-1.1.4-beta.1-windows-x64-setup.exe`。本版面向Windows10/11 x64，不支持ARM64/32位；**没有Windows实机安装/GUI/升级/卸载验收**。
+1. 下载 `Qoder-Model-Bridge-1.1.4-beta.2-windows-x64-setup.exe`。本版面向Windows10/11 x64，不支持ARM64/32位；**没有Windows实机安装/GUI/升级/卸载验收**。
 2. 先保存非秘密配置，停止转发并正常退出旧中文或新英文窗口。安装器保留既有安装身份，遇到活动代理记录会停止安装，不要删除记录绕过保护。
 3. 双击EXE，在当前用户目录完成离线安装，使用 `Qoder Model Bridge` 桌面/开始菜单快捷方式打开。默认安装根为 `%LOCALAPPDATA%\Programs\QoderInternalProxy`，不是系统级安装。
 4. 本版**没有Authenticode签名**，Windows可能显示未知发布者/SmartScreen提示。先核对发行来源与SHA256；组织策略阻止时按其软件审批流程处理，不关闭系统保护。
 
-安装根包含 `INSTALLER-README.txt`、`docs/`、`ThirdPartyLicenses/` 和 `idea-bridge/qoder-local-model-bridge-0.1.2.zip`。卸载使用该工具自己的卸载入口；配置、证书和非安装包文件按原保护规则保留。
+安装根包含 `INSTALLER-README.txt`、`docs/`、`ThirdPartyLicenses/` 和 `idea-bridge/qoder-local-model-bridge-0.1.3.zip`。卸载使用该工具自己的卸载入口；配置、证书和非安装包文件按原保护规则保留。
 
 以后更换已安装版本时，应先保存非秘密配置，停止转发并正常退出旧窗口，再安装或替换。新文件不会热更新已打开的旧窗口。不要通过关闭 Gatekeeper、全局清除隔离属性或关闭证书验证来替代安装排查。
 
@@ -129,7 +131,7 @@ DMG的 `Documentation/` 提供本文与说明，`IDEA Bridge/` 提供可选插�
 
 ## IDEA 桥接插件
 
-桥接模式必须使用[精确兼容版本](COMPATIBILITY.md)。先自行安装IDEA及官方Qoder插件，再取本项目桥接ZIP：Mac DMG的 `IDEA Bridge/`、Windows安装目录的 `idea-bridge/`，或发行页单独的 `qoder-local-model-bridge-0.1.2.zip`。普通安装包用户不需要JDK来构建它；该ZIP只包含本项目的类与元数据、MIT/NOTICE，没有打入IDEA/Qoder官方JAR。
+桥接模式必须使用[精确兼容版本](COMPATIBILITY.md)。先自行安装IDEA及官方Qoder插件，再取本项目桥接ZIP：Mac DMG的 `IDEA Bridge/`、Windows安装目录的 `idea-bridge/`，或本次交付中单独的 `qoder-local-model-bridge-0.1.3.zip`。普通安装包用户不需要JDK来构建它；该ZIP只包含本项目的类与元数据、MIT/NOTICE，没有打入IDEA/Qoder官方JAR。
 
 源码用户如需自行构建，可使用以下命令。
 
@@ -147,7 +149,7 @@ Windows PowerShell：
 
 macOS 的 `IDEA_HOME` 指 IDEA 应用的 `Contents`；Windows 指其安装根目录。`QODER_PLUGIN_DIR` 指已安装的 Qoder 官方插件目录，里面应有 `lib/*.jar`。构建脚本使用所选IDE的 JBR `javac` / `java`，以 Java 21 为目标；该环境必须实际包含编译器。脚本不会替你安装客户端。
 
-成功构建后得到 `app/idea-bridge/.build/qoder-internal-bridge-0.1.2.zip`：
+成功构建后得到 `app/idea-bridge/.build/qoder-internal-bridge-0.1.3.zip`：
 
 1. IDEA：Settings → Plugins → 齿轮 → Install Plugin from Disk，选择随包或自行构建的ZIP；如IDE提示重启，正常重启。
 2. 在 Find Action 中执行 `Qoder Internal Bridge: Enable`。
@@ -156,6 +158,18 @@ macOS 的 `IDEA_HOME` 指 IDEA 应用的 `Contents`；Windows 指其安装根目
 5. 原生窗口中输入 `local-proxy` 并确认。不要在这里填写真实网关 Key。新增、跳过与失败结果会分别显示。
 
 原生校验或导入成功不等于该模型的真实推理能力已验收。
+
+## 图片能力与已有模型同步
+
+本地 **1.1.4-beta.2** 候选包包含图片能力修复和桥接 **0.1.3**。IDEA需安装0.1.3后正常重启；只替换转发App不会更新IDEA已加载的桥接。历史公开 **v1.1.4-beta.1** 仍为旧脚本/桥接0.1.2。
+
+1. 拉取模型后，图片能力优先读取明确的 capabilities.vision；也识别顶层 vision / is_vl 和 architecture.input_modalities / input_modalities 中的图片输入声明。未声明时显示“未知”，不凭模型名称或图片输出能力猜测。
+2. 若接口声明与上游实际限制不一致，选择对应模型行，在“所选行图片”中明确选择“支持图片”或“不支持图片”。手动选择只在本次脚本运行中生效；切换上游或模型消失后清除，不写入配置。
+3. 勾选需要处理的模型，核对映射。需要修正已添加模型时，显式勾选“同步已有图片能力”，再执行原有导入操作。默认不勾选，保持旧版跳过已有模型的行为。
+4. IDEA使用“桥接导入”；旧桥接会明确提示升级。已有模型的同步仅处理能唯一匹配的OpenRouter按量模型，只更新视觉标记，不改模型ID、名称、上下文、推理选项或凭据。其他供应商和重复ID不被自动改写。
+5. 完成后查看“图片能力更新”数量，并在客户端重新选择模型或新建会话以加载新标记。未知能力不会覆盖已有值，false也会按明确声明保留。
+
+模型目录是上游声明，不是一次真实识图验证。网关若明确限制某个路由的图片输入，修改客户端标记无法解除该限制。原生Kimi等供应商的直接配置与本工具的OpenRouter映射是不同记录，应分别核对。
 
 ## 映射与模型名称
 

@@ -67,7 +67,7 @@ def main():
     copy(python_zip, "installers/" + PYTHON_ZIP, "verified official CPython archive")
     for wheel in wheels:
         copy(wheel, "wheels/" + wheel.name, "verified wheel: " + wheel.name)
-    copy(args.bridge, "idea-bridge/qoder-local-model-bridge-0.1.2.zip", "shared public bridge")
+    copy(args.bridge, "idea-bridge/qoder-local-model-bridge-0.1.3.zip", "shared vision-fix bridge")
     for path in sorted(args.licenses.rglob("*")):
         if path.is_file():
             relative = path.relative_to(args.licenses).as_posix()
@@ -125,7 +125,7 @@ def main():
     extra = [p.relative_to(extracted_root).as_posix() for p in extracted_root.rglob("*") if p.is_file() and p.relative_to(extracted_root).as_posix() not in origins]
     if any(not (name.startswith("$PLUGINSDIR/") or name == "Uninstall.exe") for name in extra):
         raise SystemExit("Unexpected extracted files: " + repr(extra))
-    report = {"release": "v1.1.4-beta.1", "numeric_version": "1.1.4", "asset": args.output.name,
+    report = {"release": "v1.1.4-beta.2", "numeric_version": "1.1.4.2", "asset": args.output.name,
               "bytes": args.output.stat().st_size, "sha256": sha256(args.output), "checks": checks,
               "payload_files": len(files), "matched_payload_files": len(files), "mismatches": mismatches,
               "installer_extra_files": extra, "python_archive_sha256": PYTHON_SHA256,

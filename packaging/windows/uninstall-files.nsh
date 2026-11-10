@@ -336,7 +336,7 @@ Push "$INSTDIR\docs\INSTALLATION.md"
 Call un.DeletePackageFile
 Push "$INSTDIR\docs\TROUBLESHOOTING.md"
 Call un.DeletePackageFile
-Push "$INSTDIR\idea-bridge\qoder-local-model-bridge-0.1.2.zip"
+Push "$INSTDIR\idea-bridge\qoder-local-model-bridge-0.1.3.zip"
 Call un.DeletePackageFile
 Push "$INSTDIR\idea_bridge.py"
 Call un.DeletePackageFile

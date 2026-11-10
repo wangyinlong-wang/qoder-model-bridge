@@ -104,6 +104,9 @@ async function qoderClientApi(client, request) {
     // This is the time we read the native API, not a claim that its remote cache refreshed.
     return {ok: true, sources, catalog_read_at: new Date().toISOString()};
   }
+  if (request.update_existing_vision !== undefined && typeof request.update_existing_vision !== 'boolean') {
+    return fail('CLIENT_IMPORT_INVALID');
+  }
   if (!Array.isArray(request.models) || request.models.length === 0 || request.models.length > 100
       || !Number.isInteger(request.proxy_port) || request.proxy_port < 1 || request.proxy_port > 65535) {
     return fail('CLIENT_IMPORT_INVALID');
@@ -111,16 +114,19 @@ async function qoderClientApi(client, request) {
   if (!sameProxy(proxy().data, {proxyMode: 'manual', httpProxy: `http://127.0.0.1:${request.proxy_port}`})) {
     return fail('CLIENT_PROXY_MISMATCH');
   }
-  const seen = new Set(), added = [], skipped = [], failed = [], waiting = [];
+  const seen = new Set(), added = [], updated = [], skipped = [], failed = [], waiting = [], visionUpdates = [];
   for (const item of request.models) {
     if (!item || typeof item.source_id !== 'string'
         || !/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,159}$/.test(item.source_id)
-        || typeof item.display_name !== 'string' || item.display_name.length > 512 || seen.has(item.source_id)) {
+        || typeof item.display_name !== 'string' || item.display_name.length > 512 || seen.has(item.source_id)
+        || (item.vision !== undefined && typeof item.vision !== 'boolean')) {
       return fail('CLIENT_IMPORT_INVALID');
     }
     seen.add(item.source_id);
     const existing = records().find(m => m.provider === 'openrouter' && m.model === item.source_id);
-    if (existing) skipped.push({source_id: item.source_id, visible: existing.visible !== false, enabled: existing.enabled !== false});
+    if (existing && request.update_existing_vision === true && typeof item.vision === 'boolean'
+        && existing.is_vl !== item.vision) visionUpdates.push({item, id: existing.id});
+    else if (existing) skipped.push({source_id: item.source_id, visible: existing.visible !== false, enabled: existing.enabled !== false});
     else waiting.push(item);
   }
   // Finish native validation before saving anything. Failure does not alter existing models.
@@ -133,7 +139,7 @@ async function qoderClientApi(client, request) {
       failed.push({source_id: item.source_id, code: 'NATIVE_VALIDATION_FAILED', ...(nativeCode ? {native_code: nativeCode} : {})});
     }
   }
-  if (failed.length) return {ok: true, status: 'failed', added, skipped, failed};
+  if (failed.length) return {ok: true, status: 'failed', added, updated, skipped, failed};
   for (const item of waiting) {
     if (!supported()) {
       failed.push({source_id: item.source_id, code: 'CLIENT_BYOK_NOT_AVAILABLE'});
@@ -167,5 +173,32 @@ async function qoderClientApi(client, request) {
       failed.push({source_id: item.source_id, code: 'NATIVE_SAVE_FAILED'});
     }
   }
-  return {ok: true, status: failed.length ? 'partial' : 'completed', added, skipped, failed};
+  for (const {item, id} of visionUpdates) {
+    if (!supported() || !sameProxy(proxy().data, {
+      proxyMode: 'manual', httpProxy: 'http://127.0.0.1:' + request.proxy_port,
+    })) {
+      failed.push({source_id: item.source_id, code: 'CLIENT_PROXY_OR_POLICY_CHANGED'});
+      continue;
+    }
+    const matches = records().filter(m => m.provider === 'openrouter' && m.model === item.source_id);
+    if (matches.length !== 1 || matches[0].id !== id || matches[0].byokTypeKey !== 'pg') {
+      failed.push({source_id: item.source_id, code: 'CLIENT_MODEL_UPDATE_AMBIGUOUS'});
+      continue;
+    }
+    if (typeof models.updateModel !== 'function') {
+      failed.push({source_id: item.source_id, code: 'CLIENT_MODEL_UPDATE_UNAVAILABLE'});
+      continue;
+    }
+    try {
+      // The native service preserves credentials when apiKey is absent.
+      await models.updateModel({id, is_vl: item.vision});
+      const found = records().find(m => m.id === id && m.provider === 'openrouter' && m.model === item.source_id);
+      if (!found || found.is_vl !== item.vision) {
+        failed.push({source_id: item.source_id, code: 'CLIENT_MODEL_UPDATE_NOT_CONFIRMED'});
+      } else updated.push({source_id: item.source_id, id});
+    } catch {
+      failed.push({source_id: item.source_id, code: 'CLIENT_MODEL_UPDATE_FAILED'});
+    }
+  }
+  return {ok: true, status: failed.length ? 'partial' : 'completed', added, updated, skipped, failed};
 }

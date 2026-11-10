@@ -10,7 +10,7 @@ function fixture(options = {}) {
     models: [{id: 'existing', provider: 'bailian', model: 'old', visible: true, enabled: true}],
     config: {other: 'keep', config: {chat: {keep: 7}, advanced: {proxyMode: 'manual', proxyURL: 'http://127.0.0.1:8897', unrelated: 42}}},
     httpProxy: 'http://127.0.0.1:8897', localProxy: 'http://127.0.0.1:8897', fallbackProxy: '',
-    validations: [], additions: [], updates: 0, supported: true,
+    validations: [], additions: [], modelUpdates: [], updates: 0, supported: true,
     catalogReads: 0, catalogModels: [], catalogError: false,
   };
   state.setUserProxy = value => { state.localProxy = value; state.httpProxy = value === undefined ? state.fallbackProxy : value; };
@@ -36,7 +36,15 @@ function fixture(options = {}) {
       state.models.push(saved);
       return saved;
     },
+    updateModel: async input => {
+      assert.deepEqual(Object.keys(input).sort(), ['id', 'is_vl']);
+      state.modelUpdates.push({...input});
+      const index = state.models.findIndex(m => m.id === input.id);
+      state.models[index] = {...state.models[index], ...input};
+      return state.models[index];
+    },
   };
+  if (options.noModelUpdate) delete native.updateModel;
   const configuration = {
     getValue: key => { assert.equal(key, 'http.proxy'); return state.httpProxy; },
     inspect: key => { assert.equal(key, 'http.proxy'); return {userLocalValue: state.localProxy}; },
@@ -110,6 +118,58 @@ test('repeat import skips existing models without revalidation or overwriting', 
   assert.equal(repeated.skipped.length, 1);
   assert.equal(state.validations.length, 1);
   assert.equal(JSON.stringify(state.models), before);
+});
+
+test('explicit vision sync changes only the native vision flag and is idempotent', async () => {
+  const {state, call} = fixture();
+  const original = {id: 'mapped', provider: 'openrouter', byokTypeKey: 'pg', model: 'image-model',
+    is_vl: false, is_reasoning: false, displayName: 'Keep name', max_input_tokens: 12345,
+    hasApiKey: true, visible: false, enabled: false, extraMetadata: 'keep'};
+  state.models.push({...original});
+  const items = [{...item('image-model'), vision: true, reasoning: true, context_length: 7}];
+  const legacy = await call(request(items));
+  assert.equal(legacy.skipped.length, 1);
+  assert.equal(state.modelUpdates.length, 0);
+  const result = await call({...request(items), update_existing_vision: true});
+  assert.equal(result.updated.length, 1);
+  assert.deepEqual(state.models[1], {...original, is_vl: true});
+  assert.equal(state.validations.length, 0);
+  assert.equal(state.additions.length, 0);
+  const repeated = await call({...request(items), update_existing_vision: true});
+  assert.equal(repeated.updated.length, 0);
+  assert.equal(repeated.skipped.length, 1);
+  assert.equal(state.modelUpdates.length, 1);
+  await call({...request([{...item('image-model'), vision: false}]), update_existing_vision: true});
+  assert.deepEqual(state.models[1], original);
+});
+
+test('invalid batches and failed new-model validation never start existing vision writes', async () => {
+  const {state, call} = fixture({invalidModel: 'bad'});
+  state.models.push({id: 'mapped', provider: 'openrouter', byokTypeKey: 'pg', model: 'old', is_vl: false});
+  const before = JSON.stringify(state.models);
+  const invalid = await call({...request([{...item('old'), vision: true}, {...item('invalid'), vision: 'true'}]),
+    update_existing_vision: true});
+  assert.equal(invalid.code, 'CLIENT_IMPORT_INVALID');
+  const failed = await call({...request([{...item('old'), vision: true}, item('bad')]), update_existing_vision: true});
+  assert.equal(failed.status, 'failed');
+  assert.equal(state.modelUpdates.length, 0);
+  assert.equal(JSON.stringify(state.models), before);
+});
+
+test('vision sync rejects ambiguous records and missing safe native update support', async () => {
+  for (const options of [{duplicate: true}, {noModelUpdate: true}]) {
+    const {state, call} = fixture(options);
+    const model = {id: 'mapped', provider: 'openrouter', byokTypeKey: 'pg', model: 'image-model', is_vl: false};
+    state.models.push(model);
+    if (options.duplicate) state.models.push({...model, id: 'another'});
+    const before = JSON.stringify(state.models);
+    const result = await call({...request([{...item('image-model'), vision: true}]), update_existing_vision: true});
+    assert.equal(result.status, 'partial');
+    assert.equal(result.updated.length, 0);
+    assert.equal(result.failed.length, 1);
+    assert.equal(JSON.stringify(state.models), before);
+    assert.equal(state.modelUpdates.length, 0);
+  }
 });
 
 test('failed native validation prevents saving the entire new batch', async () => {

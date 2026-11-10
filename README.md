@@ -20,6 +20,8 @@
 
 ## 下载安装包
 
+本地图片能力修复候选为 **1.1.4-beta.2**，Mac/Windows 包均带修复后的程序和桥接 **0.1.3**。该候选未对外发布，请使用本次交付的文件及对应 `SHA256SUMS`；下面的公开下载链接仍指向旧版beta.1。图片声明识别、手动覆盖和显式同步步骤见[安装指南](docs/INSTALLATION.md#图片能力与已有模型同步)。
+
 首个公开版本为实验性 **v1.1.4-beta.1**。在[该版本的 GitHub Releases 页面](https://github.com/wangyinlong-wang/qoder-model-bridge/releases/tag/v1.1.4-beta.1)选择：
 
 | 平台 | 文件 |

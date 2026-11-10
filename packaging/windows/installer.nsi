@@ -27,15 +27,15 @@ SetCompressor zlib
 CRCCheck on
 ShowInstDetails show
 ShowUninstDetails show
-VIProductVersion "1.1.4.0"
+VIProductVersion "1.1.4.2"
 VIAddVersionKey "ProductName" "Qoder Model Bridge"
-VIAddVersionKey "FileDescription" "Qoder Model Bridge 1.1.4-beta.1 offline installer"
-VIAddVersionKey "FileVersion" "1.1.4"
+VIAddVersionKey "FileDescription" "Qoder Model Bridge 1.1.4-beta.2 offline installer"
+VIAddVersionKey "FileVersion" "1.1.4.2"
 VIAddVersionKey "ProductVersion" "1.1.4"
 VIAddVersionKey "LegalCopyright" "Bundled third-party notices are preserved."
 
 !define MUI_ABORTWARNING
-!define MUI_WELCOMEPAGE_TEXT "安装 Qoder Model Bridge、Python 和随包组件。安装过程无需联网。$\r$\n$\r$\n实验性 1.1.4-beta.1，面向 Windows 10/11 x64；本版未完成 Windows 实机验收。使用模型时仍需访问你自己的模型网关。$\r$\n$\r$\n请先停止转发并关闭已打开的工具窗口。"
+!define MUI_WELCOMEPAGE_TEXT "安装 Qoder Model Bridge、Python 和随包组件。安装过程无需联网。$\r$\n$\r$\n实验性 1.1.4-beta.2，包含图片能力修复和桥接0.1.3，面向 Windows 10/11 x64；本版未完成 Windows 实机验收。使用模型时仍需访问你自己的模型网关。$\r$\n$\r$\n请先停止转发并关闭已打开的工具窗口。"
 !insertmacro MUI_PAGE_WELCOME
 !define MUI_PAGE_CUSTOMFUNCTION_LEAVE ValidateInstallDirectory
 !insertmacro MUI_PAGE_DIRECTORY
@@ -149,7 +149,7 @@ Section "离线安装" SEC_MAIN
   CreateShortCut "$SMPROGRAMS\${APP_NAME}\卸载.lnk" "$INSTDIR\Uninstall.exe"
   WriteRegStr HKCU "${APP_KEY}" "InstallDir" "$INSTDIR"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayName" "${APP_NAME}（离线安装版）"
-  WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayVersion" "1.1.4-beta.1"
+  WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayVersion" "1.1.4-beta.2"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "InstallLocation" "$INSTDIR"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayIcon" "$INSTDIR\${PYTHON_DIR}\pythonw.exe"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "UninstallString" '"$INSTDIR\Uninstall.exe"'

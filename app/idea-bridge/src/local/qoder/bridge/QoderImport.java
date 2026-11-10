@@ -19,6 +19,8 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectManager;
 import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.wm.IdeFocusManager;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import kotlin.Pair;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
@@ -29,9 +31,10 @@ import java.net.Socket;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 
-/** The only Qoder-version-specific code. Existing models and their credentials are never changed. */
+/** Version-specific native import; existing vision metadata changes only with explicit opt-in. */
 public final class QoderImport implements AutoCloseable {
-    public static final Set<String> SUPPORTED_QODER = Set.of("2026.924.75731882", "2026.1014.79712739");
+    public static final Set<String> SUPPORTED_QODER = Set.of("2026.924.75731882", "2026.1014.79712739", "2026.1105.86773115");
+    private static final Gson JSON = new GsonBuilder().serializeNulls().create();
     private final AtomicReference<AddModelDialog> activeDialog = new AtomicReference<>();
     private volatile boolean closing;
 
@@ -77,15 +80,43 @@ public final class QoderImport implements AutoCloseable {
             if (type == null) { job.fail("type_unavailable", "当前目录没有 OpenRouter 按量付费类型。"); return; }
 
             List<LocalBridge.Model> pending = new ArrayList<>();
+            List<LocalBridge.Model> existingRequests = new ArrayList<>();
+            Map<String, String> expectedIds = new HashMap<>();
             onUi(() -> {
                 List<ByokModelConfig> existing = existing();
                 for (LocalBridge.Model model : job.request.models()) {
-                    if (contains(existing, model.sourceId())) skipped.add(model.sourceId());
-                    else pending.add(model);
+                    var matches = existing.stream().filter(item -> "openrouter".equals(item.getProviderKey())
+                            && model.sourceId().equals(item.getModelKey())).toList();
+                    if (matches.isEmpty()) pending.add(model);
+                    else {
+                        skipped.add(model.sourceId());
+                        existingRequests.add(model);
+                        if (matches.size() == 1 && matches.get(0).getCustomModelId() != null)
+                            expectedIds.put(model.sourceId(), matches.get(0).getCustomModelId());
+                    }
                 }
             });
             if (pending.isEmpty()) {
-                job.finish("completed", List.of(), skipped, List.of(), List.of(), "", "所选模型已存在，没有改写原配置或凭据。");
+                if (closing || job.cancelled()) return;
+                List<String> updated = new ArrayList<>(), failed = new ArrayList<>();
+                if (job.request.updateExistingVision()) {
+                    stage = "vision";
+                    job.saving();
+                    onUi(() -> WriteAction.run(() -> {
+                        if (closing || job.cancelled()) return;
+                        var state = ApplicationServices.persistentSetting().getState();
+                        if (state == null) throw new IllegalStateException("Settings unavailable");
+                        var all = applyVisionUpdates(existing(), existingRequests, expectedIds, updated, failed);
+                        if (!updated.isEmpty()) state.setByokModelConfigs(all);
+                    }));
+                }
+                skipped.removeAll(updated);
+                skipped.removeAll(failed);
+                job.setUpdated(updated);
+                job.finish(failed.isEmpty() ? "completed" : "partial", List.of(), skipped, failed, List.of(),
+                        failed.isEmpty() ? "" : "vision_update_failed",
+                        updated.isEmpty() && failed.isEmpty() ? "所选模型已存在，图片能力未改变，凭据保持原样。"
+                                : "图片能力同步完成；请重新选择模型或新建会话。无法安全匹配的模型未修改，凭据保持原样。");
                 return;
             }
             if (closing || job.cancelled()) return;
@@ -151,27 +182,67 @@ public final class QoderImport implements AutoCloseable {
             }
             List<ByokModelConfig> additions = CustomModelItem.Companion.toByokModelConfigsWithoutSavingSensitiveFields(verified);
             List<String> added = new ArrayList<>();
+            List<String> updated = new ArrayList<>(), visionFailures = new ArrayList<>();
             stage = "settings";
             onUi(() -> WriteAction.run(() -> {
                 if (closing || job.cancelled()) return;
                 var state = ApplicationServices.persistentSetting().getState();
                 if (state == null) throw new IllegalStateException("Settings unavailable");
                 List<ByokModelConfig> all = new ArrayList<>(existing());
+                if (job.request.updateExistingVision())
+                    all = applyVisionUpdates(all, existingRequests, expectedIds, updated, visionFailures);
                 for (ByokModelConfig item : additions) {
                     if (contains(all, item.getModelKey())) skipped.add(item.getModelKey());
                     else { all.add(item); added.add(item.getModelKey()); }
                 }
-                // Append the new entries; retain every existing object and credential reference unchanged.
-                state.setByokModelConfigs(all);
+                // PasswordSafe is not involved in capability-only changes.
+                if (!added.isEmpty() || !updated.isEmpty()) state.setByokModelConfigs(all);
             }));
+            skipped.removeAll(updated);
+            skipped.removeAll(visionFailures);
+            failed.addAll(visionFailures);
+            job.setUpdated(updated);
             job.finish(failed.isEmpty() ? "completed" : "partial", added, skipped, failed, unselected,
-                    failed.isEmpty() ? "" : "credential_save_failed",
-                    failed.isEmpty() ? "导入完成，请在 Qoder 模型选择器中选择新增的 (byok) 模型。"
-                            : "部分凭据保存或读取验证失败，这些模型没有加入清单。已成功的模型保留。");
+                    failed.isEmpty() ? "" : visionFailures.isEmpty() ? "credential_save_failed" : "vision_update_failed",
+                    failed.isEmpty() ? "导入/同步完成，请在 Qoder 中重新选择 (byok) 模型或新建会话。"
+                            : "部分模型未新增或未同步；请核对重复 ID、供应商类型及凭据权限。已成功的模型保留。");
         } catch (Exception | LinkageError failure) {
             // Exceptions from native dialogs/storage can contain values supplied by the user. Do not log them.
             job.fail("native_" + stage + "_failed", "Qoder 导入未完成。请确认插件版本、登录状态及凭据保存权限后重试。");
         }
+    }
+
+    static List<ByokModelConfig> applyVisionUpdates(List<ByokModelConfig> existing, List<LocalBridge.Model> requested,
+                                                   Map<String, String> expectedIds, List<String> updated, List<String> failed) {
+        List<ByokModelConfig> result = new ArrayList<>(existing);
+        for (LocalBridge.Model spec : requested) {
+            if (spec.vision() == null) continue;
+            List<Integer> matches = new ArrayList<>();
+            for (int index = 0; index < existing.size(); index++) {
+                ByokModelConfig model = existing.get(index);
+                if ("openrouter".equals(model.getProviderKey()) && spec.sourceId().equals(model.getModelKey()))
+                    matches.add(index);
+            }
+            if (matches.size() != 1) {
+                failed.add(spec.sourceId());
+                continue;
+            }
+            ByokModelConfig model = existing.get(matches.get(0));
+            String expected = expectedIds.get(spec.sourceId());
+            if (expected == null || expected.isBlank() || !expected.equals(model.getCustomModelId())
+                    || !"pg".equals(model.getByokTypeKey())) {
+                failed.add(spec.sourceId());
+                continue;
+            }
+            if (Objects.equals(model.isVl(), spec.vision())) continue;
+            // Clone the complete native metadata, including fields added by newer plugin versions.
+            // Keep the saved object and every credential reference intact until the UI-thread write.
+            ByokModelConfig copy = JSON.fromJson(JSON.toJson(model), ByokModelConfig.class);
+            copy.setVl(spec.vision());
+            result.set(matches.get(0), copy);
+            updated.add(spec.sourceId());
+        }
+        return result;
     }
 
     private static boolean proxyReady(LanguageWebSocketService language, int port) {

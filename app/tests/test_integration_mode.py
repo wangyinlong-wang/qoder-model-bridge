@@ -122,8 +122,73 @@ class IntegrationModeTests(unittest.TestCase):
         self.discover.assert_not_called()
         self.assertEqual(self.app.idea_controls.winfo_manager(), "")
         self.assertEqual(self.app.config()["integration_mode"], "manual")
+        self.assertEqual(str(self.app.vision_sync_button.cget("state")), "disabled")
         self.assertEqual(self.app.mapping, {"my-model": "remote/model"})
         self.assertTrue(self.errors)
+
+    def test_vision_override_is_per_model_ephemeral_and_cleared_for_another_gateway(self):
+        models = {"remote/model": {"id": "remote/model", "capabilities": {"vision": True}},
+                  "remote/other": {"id": "remote/other", "input_modalities": ["text", "image"]}}
+        self.app.events.put(("models", self.model_snapshot(models)))
+        self.app.poll()
+        self.app.table.selection_set("remote/model")
+        self.app.select_remote()
+        self.app.vision_choice.set("不支持图片")
+        self.app.change_vision()
+        self.assertEqual(self.app.vision_overrides, {"remote/model": False})
+        self.assertIn("视觉 False（手动）", self.app.table.item("remote/model", "values")[3])
+        self.assertIn("视觉 True", self.app.table.item("remote/other", "values")[3])
+        self.assertIs(models["remote/model"]["capabilities"]["vision"], True)
+        self.assertNotIn("vision_overrides", self.app.config())
+        self.assertNotIn("update_existing_vision", self.app.config())
+        self.app.events.put(("models", self.model_snapshot(models)))
+        self.app.poll()
+        self.assertEqual(self.app.vision_overrides, {"remote/model": False})
+        self.app.base.set("http://127.0.0.1:10/v1")
+        self.app.events.put(("models", self.model_snapshot(models)))
+        self.app.poll()
+        self.assertEqual(self.app.vision_overrides, {})
+
+    def test_opted_in_import_sends_manual_vision_and_reports_updated_models(self):
+        self.select_ide()
+        self.app.models = {"remote/model": {"id": "remote/model", "capabilities": {"vision": False}}}
+        self.app.checked_models = {"remote/model"}
+        self.app.vision_overrides = {"remote/model": True}
+        self.app.update_existing_vision.set(True)
+        self.app.key = "fixture-key-must-stay-local"
+        self.app.ide_client = Mock(ready=True)
+        self.app.client_supported = True
+        self.app.process = Mock()
+        self.app.process.poll.return_value = None
+        self.app.ide_client.request.return_value = {"status": "completed", "updated": [{"source_id": "my-model"}]}
+        self.app.import_to_client()
+        self.wait_events()
+        sent = self.app.ide_client.request.call_args.kwargs
+        self.assertIs(sent["models"][0]["vision"], True)
+        self.assertIs(sent["update_existing_vision"], True)
+        self.assertNotIn(self.app.key, json.dumps(sent))
+        self.assertIn("图片能力更新 1", self.app.status.get())
+        self.assertFalse(self.app.importing)
+
+    def test_vision_sync_rejects_old_bridge_before_submit(self):
+        self.app.integration_mode.set("bridge")
+        self.app.active_mode = "bridge"
+        self.app.models = {"remote/model": {"id": "remote/model", "capabilities": {"vision": True}}}
+        self.app.checked_models = {"remote/model"}
+        self.app.update_existing_vision.set(True)
+        endpoint = Mock()
+        endpoint.request.return_value = {"version": "0.1.2"}
+        self.app.idea_endpoints = {"old": endpoint}
+        self.app.idea_target.set("old")
+        self.app.process = Mock()
+        self.app.process.poll.return_value = None
+        with patch("launcher.rpc") as native_rpc:
+            self.app.import_to_idea()
+            self.wait_events()
+        endpoint.request.assert_called_once_with("/v1/health")
+        native_rpc.assert_not_called()
+        self.assertTrue(any("0.1.3" in error for error in self.errors))
+        self.assertFalse(self.app.importing)
 
     def test_bridge_selection_discovers_and_switching_back_preserves_key_and_mapping(self):
         endpoint = BridgeEndpoint(9, "00000000-0000-0000-0000-000000000000", "Test IDEA", "a" * 43)
@@ -135,6 +200,7 @@ class IntegrationModeTests(unittest.TestCase):
         self.assertEqual(self.app.idea_controls.winfo_manager(), "pack")
         self.assertEqual(self.app.idea_target.get(), endpoint.title)
         self.assertEqual(self.app.config()["integration_mode"], "bridge")
+        self.assertEqual(str(self.app.vision_sync_button.cget("state")), "normal")
         self.app.mode_buttons[0].invoke()
         self.assertEqual(self.app.idea_endpoints, {})
         self.assertEqual(self.app.key, "test-key-only")
@@ -316,7 +382,8 @@ class IntegrationModeTests(unittest.TestCase):
                              "requested": [label.master.winfo_reqwidth(), label.master.winfo_reqheight()]}
         geometry["controls"] = []
         for widget in (self.app.fetch_button, self.app.start_button, self.app.ide_import_button,
-                       self.app.table, label, self.app.map_button, self.app.logs):
+                       self.app.table, label, self.app.vision_choices, self.app.vision_sync_button,
+                       self.app.map_button, self.app.logs):
             with self.subTest(widget=str(widget)):
                 self.assertGreater(widget.winfo_height(), 0)
                 self.assertGreaterEqual(widget.winfo_rooty(), self.root.winfo_rooty())
@@ -328,6 +395,13 @@ class IntegrationModeTests(unittest.TestCase):
                                              widget.winfo_rooty() - self.root.winfo_rooty(),
                                              widget.winfo_width(), widget.winfo_height()])
         print("LAYOUT_EVIDENCE " + json.dumps(geometry, ensure_ascii=False))
+        self.app.batch_count.set("已勾选 100 / 100")
+        self.root.geometry("850x880")
+        self.root.update_idletasks()
+        for widget in (self.app.vision_choices, self.app.vision_sync_button):
+            self.assertGreaterEqual(widget.winfo_width(), widget.winfo_reqwidth())
+            self.assertLessEqual(widget.winfo_rootx() - self.root.winfo_rootx() + widget.winfo_width(),
+                                 self.root.winfo_width())
 
     def test_idea_refresh_rereads_directory_and_replaces_names_and_removed_models(self):
         models = {"remote/model": {"id": "remote/model"}, "removed": {"id": "removed"}}
